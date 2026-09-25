@@ -65,9 +65,9 @@ services:
     restart: unless-stopped
     mem_limit: 768m
     depends_on:
-      kafka-1: {condition: service_healthy}
-      kafka-2: {condition: service_healthy}
-      kafka-3: {condition: service_healthy}
+      kafka-1: {condition: service_healthy, restart: true}
+      kafka-2: {condition: service_healthy, restart: true}
+      kafka-3: {condition: service_healthy, restart: true}
     ports: ["127.0.0.1:8081:8081"]
     environment:
       SCHEMA_REGISTRY_HOST_NAME: schema-registry
