@@ -28,6 +28,8 @@ All ports bind to `127.0.0.1` only. Settings come from `.env` (copy `.env.exampl
 
 Measured idle on M4 Pro, Docker 12 GB: about 1.9 GiB total.
 
+Kafka topics are defined in `infra/terraform/kafka/main.tf` (design section 9). Create or update them after the first `make up`, or after wiping volumes: `terraform -chdir=infra/terraform/kafka apply`. Check one with `docker compose exec kafka-1 /opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:19092 --describe --topic edits.raw.v1`.
+
 ## 2. Deploy
 
 | Env | How |
