@@ -1,0 +1,172 @@
+openapi: 3.1.0
+info:
+  title: EditGuard API
+  version: 1.0.0
+  description: >
+    Ranked queue of flagged Wikipedia edits with explanations. Binds to
+    localhost only. This file is the design contract; the running service
+    exports the same spec at /openapi.json and CI diffs the two.
+servers:
+  - url: http://localhost:8000
+security:
+  - apiKey: []
+paths:
+  /v1/flags:
+    get:
+      summary: List flagged edits, highest score first
+      operationId: listFlags
+      parameters:
+        - name: wiki
+          in: query
+          schema: {type: string, example: enwiki}
+        - name: min_score
+          in: query
+          schema: {type: number, minimum: 0, maximum: 1, default: 0.8}
+        - name: limit
+          in: query
+          schema: {type: integer, minimum: 1, maximum: 100, default: 50}
+        - name: cursor
+          in: query
+          description: Opaque cursor from the previous page.
+          schema: {type: string}
+      responses:
+        "200":
+          description: A page of flags
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: {$ref: "#/components/schemas/Flag"}
+                  next_cursor: {type: [string, "null"]}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "422": {$ref: "#/components/responses/Invalid"}
+        "429": {$ref: "#/components/responses/TooMany"}
+  /v1/edits/{wiki_id}/{rev_id}:
+    get:
+      summary: Detail for one edit
+      operationId: getEdit
+      parameters:
+        - {$ref: "#/components/parameters/WikiId"}
+        - {$ref: "#/components/parameters/RevId"}
+      responses:
+        "200":
+          description: Edit detail
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/EditDetail"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "410":
+          description: Revision hidden by Wikipedia admins
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Error"}
+  /v1/flags/{wiki_id}/{rev_id}/feedback:
+    post:
+      summary: Record a reviewer verdict on a flag
+      operationId: postFeedback
+      parameters:
+        - {$ref: "#/components/parameters/WikiId"}
+        - {$ref: "#/components/parameters/RevId"}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [verdict]
+              properties:
+                verdict: {type: string, enum: [correct, wrong, unsure]}
+                note: {type: string, maxLength: 500}
+      responses:
+        "204": {description: Recorded}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "422": {$ref: "#/components/responses/Invalid"}
+  /healthz:
+    get:
+      summary: Liveness and dependency check
+      operationId: health
+      security: []
+      responses:
+        "200": {description: "Kafka, Postgres and the model route are reachable"}
+        "503": {description: A dependency is down}
+  /metrics:
+    get:
+      summary: Prometheus metrics
+      operationId: metrics
+      security: []
+      responses:
+        "200":
+          description: Metrics in Prometheus text format
+          content:
+            text/plain: {schema: {type: string}}
+components:
+  securitySchemes:
+    apiKey: {type: apiKey, in: header, name: X-API-Key}
+  parameters:
+    WikiId:
+      name: wiki_id
+      in: path
+      required: true
+      schema: {type: string, enum: [enwiki, bnwiki, hiwiki, knwiki, mlwiki, mrwiki, tawiki, tewiki]}
+    RevId:
+      name: rev_id
+      in: path
+      required: true
+      schema: {type: integer, format: int64, minimum: 1}
+  schemas:
+    Flag:
+      type: object
+      required: [wiki_id, rev_id, page_title, score, score_version, flagged_at, diff_url, enrichment]
+      properties:
+        wiki_id: {type: string}
+        rev_id: {type: integer, format: int64}
+        page_title: {type: string}
+        score: {type: number, minimum: 0, maximum: 1}
+        score_version: {type: string}
+        llm_label: {type: [string, "null"], enum: [vandalism, spam, pov, test_edit, good_faith, other, null]}
+        llm_reason: {type: [string, "null"], maxLength: 500}
+        enrichment: {type: string, enum: [done, skipped, pending]}
+        flagged_at: {type: string, format: date-time}
+        diff_url: {type: string, format: uri}
+    EditDetail:
+      allOf:
+        - {$ref: "#/components/schemas/Flag"}
+        - type: object
+          properties:
+            event_time: {type: string, format: date-time}
+            features:
+              type: object
+              additionalProperties: {type: [number, boolean, string, "null"]}
+            baseline_probability: {type: [number, "null"]}
+            model_id: {type: [string, "null"]}
+            prompt_version: {type: [string, "null"]}
+            label:
+              type: [string, "null"]
+              enum: [damaging, bot_caught, ok, label_unknown, null]
+              description: Present only after the 48-hour label freeze.
+    Error:
+      type: object
+      required: [detail]
+      properties:
+        detail: {type: string}
+  responses:
+    Unauthorized:
+      description: Missing or invalid API key
+      content: {application/json: {schema: {$ref: "#/components/schemas/Error"}}}
+    NotFound:
+      description: Unknown edit
+      content: {application/json: {schema: {$ref: "#/components/schemas/Error"}}}
+    Invalid:
+      description: Invalid input
+      content: {application/json: {schema: {$ref: "#/components/schemas/Error"}}}
+    TooMany:
+      description: Over 60 requests per minute for this key
+      headers:
+        Retry-After: {schema: {type: integer}}
+      content: {application/json: {schema: {$ref: "#/components/schemas/Error"}}}

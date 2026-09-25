@@ -1,0 +1,283 @@
+# Source of truth for Avro schemas, Pydantic models and dbt tests.
+# Validate with: uv run datacontract lint contracts/edits.odcs.yaml
+apiVersion: v3.2.0
+kind: DataContract
+id: urn:datacontract:editguard:edits
+name: editguard-edits
+version: 1.0.0
+status: active
+description:
+  purpose: >
+    One record per edit event on the 8 target Wikipedias, taken from
+    Wikimedia's mediawiki.page_change.v1 stream, plus flagged edits and
+    Wikimedia baseline scores.
+  usage: Scoring, labelling and evaluation in EditGuard.
+  limitations: >
+    Article namespace edits only are scored. Page creations are out of scope.
+    Source has no SLA and keeps about 7 days of history.
+team:
+  name: editguard
+  members:
+    - username: 158012573+kaarthikmohaan@users.noreply.github.com
+      role: Owner
+servers:
+  - server: prod
+    type: s3
+    location: s3://<bucket>/prod/
+    format: iceberg
+  - server: staging
+    type: s3
+    location: s3://<bucket>/stg/
+    format: iceberg
+schema:
+  - name: edits
+    physicalName: bronze.edits
+    description: Edit events as received, one row per upstream event.
+    properties:
+      - name: event_id
+        logicalType: string
+        physicalType: string
+        primaryKey: true
+        required: true
+        description: Upstream meta.id (UUID). Dedup key.
+        quality:
+          - type: sql
+            description: No duplicate event_id in silver.
+            query: SELECT COUNT(*) - COUNT(DISTINCT event_id) FROM silver.edits
+            mustBe: 0
+      - name: event_time
+        logicalType: timestamp
+        physicalType: timestamp
+        required: true
+        description: revision.rev_dt, when the edit happened. Event time for watermarks.
+      - name: emitted_at
+        logicalType: timestamp
+        physicalType: timestamp
+        required: true
+        description: meta.dt, when Wikimedia emitted the event. Used for lag.
+      - name: ingested_at
+        logicalType: timestamp
+        physicalType: timestamp
+        required: true
+        description: When the producer received the event.
+      - name: wiki_id
+        logicalType: string
+        physicalType: string
+        required: true
+        description: Wiki database name.
+        quality:
+          - type: sql
+            description: Only the 8 target wikis.
+            query: >
+              SELECT COUNT(*) FROM bronze.edits WHERE wiki_id NOT IN
+              ('enwiki','bnwiki','hiwiki','knwiki','mlwiki','mrwiki','tawiki','tewiki')
+            mustBe: 0
+      - name: page_id
+        logicalType: integer
+        physicalType: bigint
+        required: true
+      - name: page_title
+        logicalType: string
+        physicalType: string
+        required: true
+      - name: namespace_id
+        logicalType: integer
+        physicalType: int
+        required: true
+        description: 0 = article namespace.
+      - name: page_change_kind
+        logicalType: string
+        physicalType: string
+        required: true
+        description: One of edit, create, move, delete, undelete, visibility_change.
+      - name: rev_id
+        logicalType: integer
+        physicalType: bigint
+        required: true
+        description: Revision ID. Unique within a wiki, not per page.
+      - name: rev_parent_id
+        logicalType: integer
+        physicalType: bigint
+        required: false
+      - name: rev_size
+        logicalType: integer
+        physicalType: bigint
+        required: true
+        description: Size of the new revision in bytes.
+      - name: prior_rev_size
+        logicalType: integer
+        physicalType: bigint
+        required: false
+        description: prior_state.revision.rev_size. Null for page creations.
+      - name: is_minor_edit
+        logicalType: boolean
+        physicalType: boolean
+        required: true
+      - name: comment
+        logicalType: string
+        physicalType: string
+        required: false
+        description: Edit summary. Hidden when is_comment_visible is false.
+      - name: is_content_visible
+        logicalType: boolean
+        physicalType: boolean
+        required: true
+      - name: is_comment_visible
+        logicalType: boolean
+        physicalType: boolean
+        required: true
+      - name: is_editor_visible
+        logicalType: boolean
+        physicalType: boolean
+        required: true
+      - name: performer_user_text
+        logicalType: string
+        physicalType: string
+        required: false
+        description: Username. Bronze only; hashed in silver and gold.
+        classification: restricted
+      - name: performer_is_bot
+        logicalType: boolean
+        physicalType: boolean
+        required: true
+      - name: performer_is_temp
+        logicalType: boolean
+        physicalType: boolean
+        required: true
+        description: Temporary account (logged-out editor).
+      - name: performer_groups
+        logicalType: array
+        physicalType: array<string>
+        required: false
+      - name: performer_edit_count
+        logicalType: integer
+        physicalType: bigint
+        required: false
+        description: Editor's edit count at the time of the edit.
+      - name: performer_registration_dt
+        logicalType: timestamp
+        physicalType: timestamp
+        required: false
+        description: Account registration time. Null for about 0.9% of events.
+      - name: revert_method
+        logicalType: string
+        physicalType: string
+        required: false
+        description: rollback, undo or manual when this edit is a revert; else null.
+      - name: rev_reverted_oldest_id
+        logicalType: integer
+        physicalType: bigint
+        required: false
+      - name: rev_reverted_newest_id
+        logicalType: integer
+        physicalType: bigint
+        required: false
+      - name: rev_original_id
+        logicalType: integer
+        physicalType: bigint
+        required: false
+        description: Revision restored by this revert.
+      - name: upstream_topic
+        logicalType: string
+        physicalType: string
+        required: true
+      - name: upstream_partition
+        logicalType: integer
+        physicalType: int
+        required: true
+      - name: upstream_offset
+        logicalType: integer
+        physicalType: bigint
+        required: true
+        description: Used by the gap detector.
+      - name: schema_version
+        logicalType: string
+        physicalType: string
+        required: true
+        description: Upstream $schema, e.g. /mediawiki/page/change/1.12.0.
+      - name: raw_json
+        logicalType: string
+        physicalType: string
+        required: true
+        description: Full upstream event, kept for reprocessing. Purged for suppressed revisions.
+
+  - name: flagged_edits
+    physicalName: edits.flagged
+    description: Edits whose score passed the flag threshold.
+    properties:
+      - name: wiki_id
+        logicalType: string
+        physicalType: string
+        primaryKey: true
+        required: true
+      - name: rev_id
+        logicalType: integer
+        physicalType: bigint
+        primaryKey: true
+        required: true
+      - name: page_title
+        logicalType: string
+        physicalType: string
+        required: true
+      - name: event_time
+        logicalType: timestamp
+        physicalType: timestamp
+        required: true
+      - name: score
+        logicalType: number
+        physicalType: double
+        required: true
+        description: 0 to 1; higher means more likely damaging.
+      - name: score_version
+        logicalType: string
+        physicalType: string
+        required: true
+      - name: history_snapshot_id
+        logicalType: integer
+        physicalType: bigint
+        required: true
+        description: Iceberg snapshot of user_history_asof_hour used for features.
+      - name: scored_at
+        logicalType: timestamp
+        physicalType: timestamp
+        required: true
+
+  - name: baseline_scores
+    physicalName: silver.baseline_scores
+    description: Wikimedia revert-risk predictions for article edits.
+    properties:
+      - name: wiki_id
+        logicalType: string
+        physicalType: string
+        primaryKey: true
+        required: true
+      - name: rev_id
+        logicalType: integer
+        physicalType: bigint
+        primaryKey: true
+        required: true
+      - name: model_name
+        logicalType: string
+        physicalType: string
+        required: true
+        description: e.g. revertrisk-language-agnostic.
+      - name: model_version
+        logicalType: string
+        physicalType: string
+        required: true
+      - name: probability_true
+        logicalType: number
+        physicalType: double
+        required: true
+        description: Predicted probability the edit is reverted.
+
+slaProperties:
+  - property: latency
+    value: 90
+    unit: s
+    element: edits.ingested_at
+    description: p95 time from edit to bronze, inside run windows.
+  - property: retention
+    value: 90
+    unit: d
+    element: edits.event_time

@@ -1,0 +1,29 @@
+{
+  "type": "record",
+  "name": "baseline_scores",
+  "doc": "Wikimedia revert-risk predictions for article edits.",
+  "fields": [
+    {
+      "name": "wiki_id",
+      "type": "string"
+    },
+    {
+      "name": "rev_id",
+      "type": "long"
+    },
+    {
+      "name": "model_name",
+      "doc": "e.g. revertrisk-language-agnostic.",
+      "type": "string"
+    },
+    {
+      "name": "model_version",
+      "type": "string"
+    },
+    {
+      "name": "probability_true",
+      "doc": "Predicted probability the edit is reverted.",
+      "type": "double"
+    }
+  ]
+}

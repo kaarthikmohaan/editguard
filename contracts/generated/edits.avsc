@@ -1,0 +1,207 @@
+{
+  "type": "record",
+  "name": "edits",
+  "doc": "Edit events as received, one row per upstream event.",
+  "fields": [
+    {
+      "name": "event_id",
+      "doc": "Upstream meta.id (UUID). Dedup key.",
+      "type": "string"
+    },
+    {
+      "name": "event_time",
+      "doc": "revision.rev_dt, when the edit happened. Event time for watermarks.",
+      "type": {
+        "type": "long",
+        "logicalType": "timestamp-millis"
+      }
+    },
+    {
+      "name": "emitted_at",
+      "doc": "meta.dt, when Wikimedia emitted the event. Used for lag.",
+      "type": {
+        "type": "long",
+        "logicalType": "timestamp-millis"
+      }
+    },
+    {
+      "name": "ingested_at",
+      "doc": "When the producer received the event.",
+      "type": {
+        "type": "long",
+        "logicalType": "timestamp-millis"
+      }
+    },
+    {
+      "name": "wiki_id",
+      "doc": "Wiki database name.",
+      "type": "string"
+    },
+    {
+      "name": "page_id",
+      "type": "long"
+    },
+    {
+      "name": "page_title",
+      "type": "string"
+    },
+    {
+      "name": "namespace_id",
+      "doc": "0 = article namespace.",
+      "type": "int"
+    },
+    {
+      "name": "page_change_kind",
+      "doc": "One of edit, create, move, delete, undelete, visibility_change.",
+      "type": "string"
+    },
+    {
+      "name": "rev_id",
+      "doc": "Revision ID. Unique within a wiki, not per page.",
+      "type": "long"
+    },
+    {
+      "name": "rev_parent_id",
+      "type": [
+        "null",
+        "long"
+      ]
+    },
+    {
+      "name": "rev_size",
+      "doc": "Size of the new revision in bytes.",
+      "type": "long"
+    },
+    {
+      "name": "prior_rev_size",
+      "doc": "prior_state.revision.rev_size. Null for page creations.",
+      "type": [
+        "null",
+        "long"
+      ]
+    },
+    {
+      "name": "is_minor_edit",
+      "type": "boolean"
+    },
+    {
+      "name": "comment",
+      "doc": "Edit summary. Hidden when is_comment_visible is false.",
+      "type": [
+        "null",
+        "string"
+      ]
+    },
+    {
+      "name": "is_content_visible",
+      "type": "boolean"
+    },
+    {
+      "name": "is_comment_visible",
+      "type": "boolean"
+    },
+    {
+      "name": "is_editor_visible",
+      "type": "boolean"
+    },
+    {
+      "name": "performer_user_text",
+      "doc": "Username. Bronze only; hashed in silver and gold.",
+      "type": [
+        "null",
+        "string"
+      ]
+    },
+    {
+      "name": "performer_is_bot",
+      "type": "boolean"
+    },
+    {
+      "name": "performer_is_temp",
+      "doc": "Temporary account (logged-out editor).",
+      "type": "boolean"
+    },
+    {
+      "name": "performer_groups",
+      "type": [
+        "null",
+        {
+          "type": "array",
+          "items": "string"
+        }
+      ]
+    },
+    {
+      "name": "performer_edit_count",
+      "doc": "Editor's edit count at the time of the edit.",
+      "type": [
+        "null",
+        "long"
+      ]
+    },
+    {
+      "name": "performer_registration_dt",
+      "doc": "Account registration time. Null for about 0.9% of events.",
+      "type": [
+        "null",
+        {
+          "type": "long",
+          "logicalType": "timestamp-millis"
+        }
+      ]
+    },
+    {
+      "name": "revert_method",
+      "doc": "rollback, undo or manual when this edit is a revert; else null.",
+      "type": [
+        "null",
+        "string"
+      ]
+    },
+    {
+      "name": "rev_reverted_oldest_id",
+      "type": [
+        "null",
+        "long"
+      ]
+    },
+    {
+      "name": "rev_reverted_newest_id",
+      "type": [
+        "null",
+        "long"
+      ]
+    },
+    {
+      "name": "rev_original_id",
+      "doc": "Revision restored by this revert.",
+      "type": [
+        "null",
+        "long"
+      ]
+    },
+    {
+      "name": "upstream_topic",
+      "type": "string"
+    },
+    {
+      "name": "upstream_partition",
+      "type": "int"
+    },
+    {
+      "name": "upstream_offset",
+      "doc": "Used by the gap detector.",
+      "type": "long"
+    },
+    {
+      "name": "schema_version",
+      "doc": "Upstream $schema, e.g. /mediawiki/page/change/1.12.0.",
+      "type": "string"
+    },
+    {
+      "name": "raw_json",
+      "doc": "Full upstream event, kept for reprocessing. Purged for suppressed revisions.",
+      "type": "string"
+    }
+  ]
+}

@@ -1,0 +1,224 @@
+version: 2
+models:
+- name: edits
+  config:
+    meta:
+      data_contract: urn:datacontract:editguard:edits
+      owner: editguard
+  description: Edit events as received, one row per upstream event.
+  columns:
+  - name: event_id
+    data_tests:
+    - not_null
+    - unique
+    data_type: STRING
+    description: Upstream meta.id (UUID). Dedup key.
+  - name: event_time
+    data_tests:
+    - not_null
+    data_type: TIMESTAMP_TZ
+    description: revision.rev_dt, when the edit happened. Event time for watermarks.
+  - name: emitted_at
+    data_tests:
+    - not_null
+    data_type: TIMESTAMP_TZ
+    description: meta.dt, when Wikimedia emitted the event. Used for lag.
+  - name: ingested_at
+    data_tests:
+    - not_null
+    data_type: TIMESTAMP_TZ
+    description: When the producer received the event.
+  - name: wiki_id
+    data_tests:
+    - not_null
+    data_type: STRING
+    description: Wiki database name.
+  - name: page_id
+    data_tests:
+    - not_null
+    data_type: NUMBER
+  - name: page_title
+    data_tests:
+    - not_null
+    data_type: STRING
+  - name: namespace_id
+    data_tests:
+    - not_null
+    data_type: NUMBER
+    description: 0 = article namespace.
+  - name: page_change_kind
+    data_tests:
+    - not_null
+    data_type: STRING
+    description: One of edit, create, move, delete, undelete, visibility_change.
+  - name: rev_id
+    data_tests:
+    - not_null
+    data_type: NUMBER
+    description: Revision ID. Unique within a wiki, not per page.
+  - name: rev_parent_id
+    data_type: NUMBER
+  - name: rev_size
+    data_tests:
+    - not_null
+    data_type: NUMBER
+    description: Size of the new revision in bytes.
+  - name: prior_rev_size
+    data_type: NUMBER
+    description: prior_state.revision.rev_size. Null for page creations.
+  - name: is_minor_edit
+    data_tests:
+    - not_null
+    data_type: BOOLEAN
+  - name: comment
+    data_type: STRING
+    description: Edit summary. Hidden when is_comment_visible is false.
+  - name: is_content_visible
+    data_tests:
+    - not_null
+    data_type: BOOLEAN
+  - name: is_comment_visible
+    data_tests:
+    - not_null
+    data_type: BOOLEAN
+  - name: is_editor_visible
+    data_tests:
+    - not_null
+    data_type: BOOLEAN
+  - name: performer_user_text
+    data_type: STRING
+    description: Username. Bronze only; hashed in silver and gold.
+    meta:
+      classification: restricted
+  - name: performer_is_bot
+    data_tests:
+    - not_null
+    data_type: BOOLEAN
+  - name: performer_is_temp
+    data_tests:
+    - not_null
+    data_type: BOOLEAN
+    description: Temporary account (logged-out editor).
+  - name: performer_groups
+    data_type: ARRAY
+  - name: performer_edit_count
+    data_type: NUMBER
+    description: Editor's edit count at the time of the edit.
+  - name: performer_registration_dt
+    data_type: TIMESTAMP_TZ
+    description: Account registration time. Null for about 0.9% of events.
+  - name: revert_method
+    data_type: STRING
+    description: rollback, undo or manual when this edit is a revert; else null.
+  - name: rev_reverted_oldest_id
+    data_type: NUMBER
+  - name: rev_reverted_newest_id
+    data_type: NUMBER
+  - name: rev_original_id
+    data_type: NUMBER
+    description: Revision restored by this revert.
+  - name: upstream_topic
+    data_tests:
+    - not_null
+    data_type: STRING
+  - name: upstream_partition
+    data_tests:
+    - not_null
+    data_type: NUMBER
+  - name: upstream_offset
+    data_tests:
+    - not_null
+    data_type: NUMBER
+    description: Used by the gap detector.
+  - name: schema_version
+    data_tests:
+    - not_null
+    data_type: STRING
+    description: Upstream $schema, e.g. /mediawiki/page/change/1.12.0.
+  - name: raw_json
+    data_tests:
+    - not_null
+    data_type: STRING
+    description: Full upstream event, kept for reprocessing. Purged for suppressed
+      revisions.
+- name: flagged_edits
+  config:
+    meta:
+      data_contract: urn:datacontract:editguard:edits
+      owner: editguard
+  description: Edits whose score passed the flag threshold.
+  data_tests:
+  - dbt_utils.unique_combination_of_columns:
+      combination_of_columns:
+      - wiki_id
+      - rev_id
+  columns:
+  - name: wiki_id
+    data_tests:
+    - not_null
+    data_type: STRING
+  - name: rev_id
+    data_tests:
+    - not_null
+    data_type: NUMBER
+  - name: page_title
+    data_tests:
+    - not_null
+    data_type: STRING
+  - name: event_time
+    data_tests:
+    - not_null
+    data_type: TIMESTAMP_TZ
+  - name: score
+    data_tests:
+    - not_null
+    data_type: FLOAT
+    description: 0 to 1; higher means more likely damaging.
+  - name: score_version
+    data_tests:
+    - not_null
+    data_type: STRING
+  - name: history_snapshot_id
+    data_tests:
+    - not_null
+    data_type: NUMBER
+    description: Iceberg snapshot of user_history_asof_hour used for features.
+  - name: scored_at
+    data_tests:
+    - not_null
+    data_type: TIMESTAMP_TZ
+- name: baseline_scores
+  config:
+    meta:
+      data_contract: urn:datacontract:editguard:edits
+      owner: editguard
+  description: Wikimedia revert-risk predictions for article edits.
+  data_tests:
+  - dbt_utils.unique_combination_of_columns:
+      combination_of_columns:
+      - wiki_id
+      - rev_id
+  columns:
+  - name: wiki_id
+    data_tests:
+    - not_null
+    data_type: STRING
+  - name: rev_id
+    data_tests:
+    - not_null
+    data_type: NUMBER
+  - name: model_name
+    data_tests:
+    - not_null
+    data_type: STRING
+    description: e.g. revertrisk-language-agnostic.
+  - name: model_version
+    data_tests:
+    - not_null
+    data_type: STRING
+  - name: probability_true
+    data_tests:
+    - not_null
+    data_type: FLOAT
+    description: Predicted probability the edit is reverted.
+

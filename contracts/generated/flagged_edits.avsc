@@ -1,0 +1,47 @@
+{
+  "type": "record",
+  "name": "flagged_edits",
+  "doc": "Edits whose score passed the flag threshold.",
+  "fields": [
+    {
+      "name": "wiki_id",
+      "type": "string"
+    },
+    {
+      "name": "rev_id",
+      "type": "long"
+    },
+    {
+      "name": "page_title",
+      "type": "string"
+    },
+    {
+      "name": "event_time",
+      "type": {
+        "type": "long",
+        "logicalType": "timestamp-millis"
+      }
+    },
+    {
+      "name": "score",
+      "doc": "0 to 1; higher means more likely damaging.",
+      "type": "double"
+    },
+    {
+      "name": "score_version",
+      "type": "string"
+    },
+    {
+      "name": "history_snapshot_id",
+      "doc": "Iceberg snapshot of user_history_asof_hour used for features.",
+      "type": "long"
+    },
+    {
+      "name": "scored_at",
+      "type": {
+        "type": "long",
+        "logicalType": "timestamp-millis"
+      }
+    }
+  ]
+}
