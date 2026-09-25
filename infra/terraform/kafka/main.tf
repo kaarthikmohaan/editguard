@@ -14,7 +14,7 @@ terraform {
 variable "bootstrap_servers" {
   description = "Kafka brokers as seen from where Terraform runs"
   type        = list(string)
-  default     = ["localhost:9092", "localhost:9094", "localhost:9096"]
+  default     = ["127.0.0.1:9092", "127.0.0.1:9094", "127.0.0.1:9096"]
 }
 
 provider "kafka" {

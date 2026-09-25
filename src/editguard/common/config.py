@@ -24,8 +24,8 @@ class Settings(BaseSettings):
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore", frozen=True)
 
-    kafka_bootstrap_servers: str = "localhost:9092,localhost:9094,localhost:9096"
-    schema_registry_url: str = "http://localhost:8081"
+    kafka_bootstrap_servers: str = "127.0.0.1:9092,127.0.0.1:9094,127.0.0.1:9096"
+    schema_registry_url: str = "http://127.0.0.1:8081"
     contact_email: str = Field(min_length=3, pattern=r".+@.+")
     log_level: str = "INFO"
 
