@@ -47,6 +47,12 @@ docker compose exec kafka-1 /opt/kafka/bin/kafka-console-consumer.sh --bootstrap
   --formatter-property print.headers=true --formatter-property print.key=true
 ```
 
+### AWS access
+
+Log in with IAM Identity Center (no long-lived keys): `aws sso login --profile editguard-dev`. Sessions last 8 hours. Check with `aws sts get-caller-identity --profile editguard-dev`; the ARN must contain `AWSReservedSSO_AdministratorAccess`.
+
+Terraform state lives in the versioned bucket `editguard-tfstate-<account_id>-ap-south-1`, created once by `infra/terraform/aws/bootstrap` (local state, gitignored). If that local state is lost, the bucket still exists: re-create the state with `terraform import aws_s3_bucket.tfstate <bucket>` (and the four settings resources) rather than applying again.
+
 ## 2. Deploy
 
 | Env | How |
