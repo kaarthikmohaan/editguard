@@ -66,3 +66,15 @@ def to_edit_event(event: dict[str, Any], ingested_at: datetime | None = None) ->
         "schema_version": event["$schema"],
         "raw_json": json.dumps(event, ensure_ascii=False, separators=(",", ":")),
     }
+
+
+def to_baseline_score(event: dict[str, Any]) -> dict[str, Any]:
+    """Map one revert-risk prediction event to a BaselineScore record."""
+    prediction = event["predicted_classification"]
+    return {
+        "wiki_id": event["wiki_id"],
+        "rev_id": event["revision"]["rev_id"],
+        "model_name": prediction["model_name"],
+        "model_version": prediction["model_version"],
+        "probability_true": float(prediction["probabilities"]["true"]),
+    }

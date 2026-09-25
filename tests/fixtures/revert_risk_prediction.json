@@ -1,0 +1,22 @@
+{
+  "$schema": "/mediawiki/page/prediction_classification_change/1.3.0",
+  "page_change_kind": "edit",
+  "dt": "2026-09-25T15:00:24Z",
+  "wiki_id": "enwiki",
+  "meta": {
+    "stream": "mediawiki.page_revert_risk_prediction_change.v1",
+    "id": "44e9c254-4319-422e-86cd-03d497991e06",
+    "dt": "2026-09-25T15:00:29.222Z",
+    "topic": "eqiad.mediawiki.page_revert_risk_prediction_change.v1",
+    "partition": 0,
+    "offset": 117342277
+  },
+  "page": {"page_id": 12345, "page_title": "Example_article", "namespace_id": 0},
+  "revision": {"rev_id": 2549252841, "rev_dt": "2026-09-25T15:00:24Z"},
+  "predicted_classification": {
+    "model_name": "revertrisk-language-agnostic",
+    "model_version": "3",
+    "predictions": ["false"],
+    "probabilities": {"true": 0.11478381603956223, "false": 0.8852161839604378}
+  }
+}

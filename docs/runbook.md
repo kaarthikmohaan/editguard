@@ -30,6 +30,15 @@ Measured idle on M4 Pro, Docker 12 GB: about 1.9 GiB total.
 
 Kafka topics are defined in `infra/terraform/kafka/main.tf` (design section 9). Create or update them after the first `make up`, or after wiping volumes: `terraform -chdir=infra/terraform/kafka apply`. Check one with `docker compose exec kafka-1 /opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:19092 --describe --topic edits.raw.v1`.
 
+Run the producers, one terminal each (Wikimedia allows 2 stream connections per IP, so do not run `producer.watch` at the same time). Stop with Ctrl+C; a restart resumes from the saved bookmark with no gaps:
+
+```bash
+uv run python -m editguard.producer --stream edits      # page_change -> edits.raw.v1
+uv run python -m editguard.producer --stream baseline   # revert-risk -> baseline.raw.v1
+```
+
+Each logs a `stats` line every minute (`received`, `kept`, `dlq`, `gap_events`, `in_flight`). `upstream_gap` at error level means events were lost upstream.
+
 Inspect the dead letter queue (headers `error_stage`, `error_type`, `error_message`, `source_topic`; value is the original event as JSON):
 
 ```bash

@@ -8,7 +8,8 @@ import pytest
 from confluent_kafka.serialization import SerializationContext
 from fastavro import parse_schema, schemaless_writer
 
-from editguard.producer.kafka_sink import DLQ_TOPIC, EDITS_TOPIC, EditSink
+from editguard.producer.kafka_sink import DLQ_TOPIC, RecordSink
+from editguard.producer.streams import STREAMS
 
 ROOT = Path(__file__).parents[1]
 SCHEMA = parse_schema(json.loads((ROOT / "contracts/generated/edits.avsc").read_text()))
@@ -41,9 +42,9 @@ def raw_edit() -> dict[str, Any]:
 
 def test_valid_event_goes_to_edits_topic_with_page_key(raw_edit: dict[str, Any]) -> None:
     producer = FakeProducer()
-    assert EditSink(producer, avro_bytes).send(raw_edit) is True
+    assert RecordSink(producer, avro_bytes, STREAMS["edits"]).send(raw_edit) is True
     [msg] = producer.sent
-    assert msg["topic"] == EDITS_TOPIC
+    assert msg["topic"] == "edits.raw.v1"
     assert msg["key"] == b"enwiki:12345"
     assert isinstance(msg["value"], bytes)
 
@@ -52,7 +53,7 @@ def test_missing_field_goes_to_dlq_with_error_headers(raw_edit: dict[str, Any]) 
     broken = copy.deepcopy(raw_edit)
     del broken["revision"]["rev_id"]
     producer = FakeProducer()
-    assert EditSink(producer, avro_bytes).send(broken) is False
+    assert RecordSink(producer, avro_bytes, STREAMS["edits"]).send(broken) is False
     [msg] = producer.sent
     headers = dict(msg["headers"])
     assert msg["topic"] == DLQ_TOPIC
@@ -66,7 +67,7 @@ def test_schema_violation_goes_to_dlq(raw_edit: dict[str, Any]) -> None:
     wrong_type = copy.deepcopy(raw_edit)
     wrong_type["revision"]["rev_size"] = "not a number"
     producer = FakeProducer()
-    assert EditSink(producer, avro_bytes).send(wrong_type) is False
+    assert RecordSink(producer, avro_bytes, STREAMS["edits"]).send(wrong_type) is False
     assert dict(producer.sent[0]["headers"])["error_stage"] == b"serialize"
 
 
@@ -75,5 +76,5 @@ def test_delivery_callback_is_passed_through(raw_edit: dict[str, Any]) -> None:
 
     def callback(err: Any, msg: Any) -> None: ...
 
-    EditSink(producer, avro_bytes).send(raw_edit, on_delivery=callback)
+    RecordSink(producer, avro_bytes, STREAMS["edits"]).send(raw_edit, on_delivery=callback)
     assert producer.sent[0]["on_delivery"] is callback
