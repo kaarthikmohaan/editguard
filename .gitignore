@@ -1,0 +1,30 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Secrets and local settings (never commit)
+.env
+*.pem
+
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+
+# Local data, Spark checkpoints, notebooks output
+data/
+checkpoints/
+spark-warehouse/
+metastore_db/
+derby.log
+
+# OS and editors
+.DS_Store
+.idea/
+.vscode/

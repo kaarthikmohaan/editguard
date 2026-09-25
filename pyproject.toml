@@ -1,0 +1,14 @@
+[project]
+name = "editguard"
+version = "0.0.0"
+description = "Real-time triage of Wikipedia edits that anti-vandal bots miss"
+readme = "README.md"
+authors = [
+    { name = "Karthik Mohan", email = "158012573+kaarthikmohaan@users.noreply.github.com" }
+]
+requires-python = ">=3.12"
+dependencies = []
+
+[build-system]
+requires = ["uv_build>=0.12.1,<0.13.0"]
+build-backend = "uv_build"
