@@ -7,7 +7,10 @@ authors = [
     { name = "Karthik Mohan", email = "158012573+kaarthikmohaan@users.noreply.github.com" }
 ]
 requires-python = ">=3.12"
-dependencies = []
+dependencies = [
+    "pydantic-settings>=2.15.0",
+    "structlog>=26.1.0",
+]
 
 [build-system]
 requires = ["uv_build>=0.12.1,<0.13.0"]
