@@ -16,6 +16,18 @@ How to run EditGuard, what each alert means, and how to recover. Every Grafana a
 
 The producer resumes from its last acked event ID on start. Gaps up to about 7 days are recovered automatically; longer ones are permanent.
 
+### Local services (`compose.yaml`)
+
+All ports bind to `127.0.0.1` only. Settings come from `.env` (copy `.env.example`).
+
+| Service | Host port | Memory cap | Health check |
+| --- | --- | --- | --- |
+| kafka-1, kafka-2, kafka-3 (KRaft, broker + controller) | 9092, 9094, 9096 | 1 GiB each (heap 512 MB) | `kafka-metadata-quorum.sh ... describe --status` shows 3 voters |
+| schema-registry | 8081 | 768 MiB | `curl -s localhost:8081/config` returns `BACKWARD` |
+| postgres | 5433 (5432 is often taken by a local install) | 512 MiB | `pg_isready` |
+
+Measured idle on M4 Pro, Docker 12 GB: about 1.9 GiB total.
+
 ## 2. Deploy
 
 | Env | How |
