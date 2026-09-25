@@ -30,6 +30,14 @@ Measured idle on M4 Pro, Docker 12 GB: about 1.9 GiB total.
 
 Kafka topics are defined in `infra/terraform/kafka/main.tf` (design section 9). Create or update them after the first `make up`, or after wiping volumes: `terraform -chdir=infra/terraform/kafka apply`. Check one with `docker compose exec kafka-1 /opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:19092 --describe --topic edits.raw.v1`.
 
+Inspect the dead letter queue (headers `error_stage`, `error_type`, `error_message`, `source_topic`; value is the original event as JSON):
+
+```bash
+docker compose exec kafka-1 /opt/kafka/bin/kafka-console-consumer.sh --bootstrap-server localhost:19092 \
+  --topic edits.dlq --from-beginning --max-messages 5 --timeout-ms 10000 \
+  --formatter-property print.headers=true --formatter-property print.key=true
+```
+
 ## 2. Deploy
 
 | Env | How |
