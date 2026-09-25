@@ -36,7 +36,7 @@ extend-exclude = ["contracts/generated"]
 select = ["E", "F", "I", "B", "UP", "S"]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**" = ["S101"]
+"tests/**" = ["S101", "S311"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
