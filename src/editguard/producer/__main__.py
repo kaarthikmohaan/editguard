@@ -15,6 +15,7 @@ from editguard.common.config import get_settings
 from editguard.common.logs import configure_logging
 from editguard.producer.acks import AckTracker
 from editguard.producer.backoff import backoff_delay
+from editguard.producer.gaps import GapDetector, decode_checkpoint, encode_checkpoint
 from editguard.producer.kafka_sink import (
     DeliveryCallback,
     EditSink,
@@ -40,7 +41,7 @@ class Producer:
         self.bookmark = BookmarkWriter(self.kafka, STREAM)
         self.stopping = False
         self.delivery_failed = False
-        self.counts = {"received": 0, "kept": 0, "dlq": 0}
+        self.counts = {"received": 0, "kept": 0, "dlq": 0, "gap_events": 0}
 
     def stop(self, signum: int, _frame: FrameType | None) -> None:
         """Signal handler: finish the current event, flush, save the bookmark, exit."""
@@ -48,8 +49,10 @@ class Producer:
         self.stopping = True
 
     def run(self) -> int:
-        resume_id = load_bookmark(self.settings, STREAM)
-        self.log.info("starting", stream=STREAM, resuming=resume_id is not None)
+        checkpoint = load_bookmark(self.settings, STREAM)
+        resume_id, seed = decode_checkpoint(checkpoint)
+        self.gaps = GapDetector(seed)
+        self.log.info("starting", stream=STREAM, resuming=resume_id is not None, seeded=bool(seed))
         attempt = 0
         while not self.stopping and not self.delivery_failed:
             tracker = AckTracker()
@@ -60,8 +63,9 @@ class Producer:
                 self.log.warning("stream_interrupted", error=type(exc).__name__, detail=str(exc))
             # Every exit from _consume lands here: wait for Kafka, then move the bookmark.
             self.kafka.flush(30)
-            resume_id = tracker.safe_event_id() or resume_id
-            self.bookmark.maybe_save(resume_id, force=True)
+            checkpoint = tracker.safe_event_id() or checkpoint
+            self.bookmark.maybe_save(checkpoint, force=True)
+            resume_id, _ = decode_checkpoint(checkpoint)
             self.kafka.flush(10)
             if self.stopping or self.delivery_failed:
                 break
@@ -78,7 +82,12 @@ class Producer:
         last_stats = time.monotonic()
         with httpx.Client(headers=headers, timeout=timeout) as client:
             for event in iter_events(client, STREAM, resume_id):
-                seq = tracker.register(event.id)
+                meta = event.data["meta"]
+                self._check_gap(meta["topic"], meta["partition"], meta["offset"])
+                token = encode_checkpoint(
+                    event.id, meta["topic"], meta["partition"], meta["offset"]
+                )
+                seq = tracker.register(token)
                 self.counts["received"] += 1
                 if is_target(event.data):
                     sent = self.sink.send(event.data, on_delivery=self._on_delivery(tracker, seq))
@@ -92,6 +101,19 @@ class Producer:
                     last_stats = time.monotonic()
                 if self.stopping or self.delivery_failed:
                     return
+
+    def _check_gap(self, topic: str, partition: int, offset: int) -> None:
+        gap = self.gaps.observe(topic, partition, offset)
+        if gap is not None:
+            self.counts["gap_events"] += gap.missing
+            self.log.error(
+                "upstream_gap",
+                topic=gap.topic,
+                partition=gap.partition,
+                expected=gap.expected,
+                got=gap.got,
+                missing=gap.missing,
+            )
 
     def _on_delivery(self, tracker: AckTracker, seq: int) -> DeliveryCallback:
         def callback(err: KafkaError | None, msg: Message) -> None:
