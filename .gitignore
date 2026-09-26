@@ -28,3 +28,6 @@ derby.log
 .DS_Store
 .idea/
 .vscode/
+
+# Terraform values that must not be committed (e.g. personal email)
+local.auto.tfvars

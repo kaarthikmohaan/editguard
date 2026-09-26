@@ -33,9 +33,11 @@ Kafka topics are defined in `infra/terraform/kafka/main.tf` (design section 9). 
 Run the producers, one terminal each (Wikimedia allows 2 stream connections per IP, so do not run `producer.watch` at the same time). Stop with Ctrl+C; a restart resumes from the saved bookmark with no gaps:
 
 ```bash
-uv run python -m editguard.producer --stream edits      # page_change -> edits.raw.v1
-uv run python -m editguard.producer --stream baseline   # revert-risk -> baseline.raw.v1
+until uv run python -m editguard.producer --stream edits; do sleep 30; done      # page_change -> edits.raw.v1
+until uv run python -m editguard.producer --stream baseline; do sleep 30; done   # revert-risk -> baseline.raw.v1
 ```
+
+The `until` loop restarts the producer after a non-zero exit (a stand-in for a container restart policy); Ctrl+C exits 0 and ends the loop. After the Mac wakes from sleep, Docker's VM clock can lag the host, and Kafka rejects messages stamped more than 1 hour ahead (`log.message.timestamp.after.max.ms`) with `INVALID_TIMESTAMP`. The producer then exits with `delivery_failed: true` without moving its bookmark past the rejected events; the loop restarts it once the clocks agree and it replays the missed hours.
 
 Each logs a `stats` line every minute (`received`, `kept`, `dlq`, `gap_events`, `in_flight`). `upstream_gap` at error level means events were lost upstream.
 
