@@ -18,7 +18,7 @@ Hardware for all measurements: Apple M4 Pro, 48 GB RAM, Docker Desktop 12 GB.
 | `foreachBatch` sees new history snapshot | Snapshot ID changes | `<TBD>` | |
 | dbt-athena MERGE + OPTIMIZE on v2 | Both succeed | `<TBD>` | |
 | OPTIMIZE while Spark appends | 10 runs, no failure | `<TBD>` | |
-| Local LLM throughput | ≥ 1.5x English flag rate | `<TBD>` | |
+| Local LLM throughput | ≥ 1.5x English flag rate | 2026-09-26: `qwen3:4b-instruct` (Q4_K_M, 2.5 GB) on Ollama 0.34.4, all 37 layers on Metal. 30 sequential ~450-token diff prompts, JSON verdict, temperature 0: p50 0.46 s, max 0.61 s, 2.09 calls/s. Required 0.032 calls/s (1.5 × 2% × 3,870 non-bot English edits/h). Best case: 5 prompts repeat, so the prompt cache helps; speed only, not quality. | Pass (65x) |
 | Producer kill -9 | Zero gaps | 2026-09-25 15:18:51 UTC: `kill -9` of the edits producer mid-stream, restarted 15:20:03. Resumed with `seeded: true`; `gap_events: 0` over the following minutes; 1 duplicate `event_id` in `edits.raw.v1` (sent just before the kill, re-sent on resume). | Pass |
 | User-Agent recognised | Not 10 req/min tier | 2026-09-26 ~02:05 UTC: 15 `action=query&meta=siteinfo` requests to en.wikipedia.org in ~15 s with the `Settings.user_agent` string (tool name, repo URL, contact email): 15 × HTTP 200, no 429. Wikimedia sends no tier header, so this shows the client is above the 10/min tier, not that it is exactly in the 200/min tier. | Pass |
 
@@ -28,6 +28,7 @@ Measured with `uv run python -m editguard.tools.day1 --since 2026-09-25T15:15`.
 
 - **Deletes carry an old `event_time`.** For `delete` and `undelete`, upstream `revision.rev_dt` is the timestamp of the page's last revision, not of the change; 1,097 of these events in the window had `event_time` more than 1 hour before `emitted_at`. The contract maps `event_time` to `rev_dt`, so the live job's 2-minute watermark would drop almost every delete from bronze, and deletes drive the FR7 purge. To decide in M1 through the contract process (likely `event_time` = top-level `dt`, which equals `rev_dt` for edits).
 - **Suppressed-revision deletes omit `rev_size`.** The contract marks `rev_size` required, so these go to `edits.dlq` (3 so far, about 0.003%). Fix in M3 with `make contract` (make it nullable), then replay the DLQ before its 30-day retention ends.
+- **Model choice.** The design names no local model. `qwen3:4b` now resolves to Qwen3-4B *Thinking*-2507, which reasons before every answer even with `think: false` (239 tokens for a one-word reply), so `qwen3:4b-instruct` was chosen. Quality is judged by the M5 evals; in this benchmark it labelled an added citation as `unsourced_change`.
 - **Lateness is higher than the design profile** (p99 21.8 s vs 10.3 s from the 2-minute sample); still well inside the 2-minute watermark.
 
 ## Decision
