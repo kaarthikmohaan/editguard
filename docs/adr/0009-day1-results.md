@@ -20,7 +20,7 @@ Hardware for all measurements: Apple M4 Pro, 48 GB RAM, Docker Desktop 12 GB.
 | OPTIMIZE while Spark appends | 10 runs, no failure | `<TBD>` | |
 | Local LLM throughput | ≥ 1.5x English flag rate | `<TBD>` | |
 | Producer kill -9 | Zero gaps | 2026-09-25 15:18:51 UTC: `kill -9` of the edits producer mid-stream, restarted 15:20:03. Resumed with `seeded: true`; `gap_events: 0` over the following minutes; 1 duplicate `event_id` in `edits.raw.v1` (sent just before the kill, re-sent on resume). | Pass |
-| User-Agent recognised | Not 10 req/min tier | `<TBD>` | |
+| User-Agent recognised | Not 10 req/min tier | 2026-09-26 ~02:05 UTC: 15 `action=query&meta=siteinfo` requests to en.wikipedia.org in ~15 s with the `Settings.user_agent` string (tool name, repo URL, contact email): 15 × HTTP 200, no 429. Wikimedia sends no tier header, so this shows the client is above the 10/min tier, not that it is exactly in the 200/min tier. | Pass |
 
 Measured with `uv run python -m editguard.tools.day1 --since 2026-09-25T15:15`.
 
