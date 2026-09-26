@@ -31,3 +31,9 @@ derby.log
 
 # Terraform values that must not be committed (e.g. personal email)
 local.auto.tfvars
+
+# dbt
+target/
+dbt_packages/
+logs/
+.user.yml

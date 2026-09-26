@@ -1,0 +1,11 @@
+# Throwaway dbt project for the day-1 test "dbt-athena MERGE + OPTIMIZE on v2" (design 13).
+# Writes one tiny table, stg_silver.day1_merge_probe, in the staging environment only.
+name: day1_merge
+version: "1.0.0"
+profile: day1_merge
+model-paths: ["models"]
+macro-paths: ["macros"]
+target-path: "target"
+clean-targets: ["target", "dbt_packages", "logs"]
+flags:
+  send_anonymous_usage_stats: false
