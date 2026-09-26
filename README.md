@@ -56,7 +56,7 @@ brew install openjdk@17 terraform awscli
 git clone https://github.com/<you>/editguard && cd editguard
 cp .env.example .env          # set AWS profile, bucket, region
 make setup                    # uv sync, pre-commit install
-make infra ENV=dev            # terraform apply
+make infra ENV=staging        # terraform apply
 make up                       # Kafka, Schema Registry, Postgres, Grafana
 make stream                   # producer + Spark live job
 make demo                     # replay a fixture and open the triage page

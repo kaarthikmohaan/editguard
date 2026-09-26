@@ -44,7 +44,7 @@ Python is pinned to 3.12 in `.python-version`. Add packages with `uv add <pkg>` 
 | Target | Does |
 | --- | --- |
 | `setup` | Install dependencies and hooks |
-| `infra ENV=` | Terraform apply for dev, staging or prod |
+| `infra ENV=` | Terraform plan and apply for staging or prod (dev is local, no AWS) |
 | `demo` | Replay a fixture and open the triage page |
 | `up` / `down` | Start / stop local services |
 | `stream` / `replay` / `batch` | Run streaming, replay, Airflow |

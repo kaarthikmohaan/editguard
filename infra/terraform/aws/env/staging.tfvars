@@ -1,0 +1,2 @@
+env    = "staging"
+prefix = "stg"
