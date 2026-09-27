@@ -5,19 +5,29 @@ All notable changes are listed here. Format: [Keep a Changelog](https://keepacha
 ## [Unreleased]
 
 ### Added
-- dbt project for the Athena batch layer (`transform/`, `make dbt ENV=… CMD=…`).
-- `silver.edits`: incremental MERGE on `event_id` from `bronze.edits`, article edits only, usernames replaced by a salted hash, `raw_json` dropped; tests for unique and not-null `event_id` and accepted values.
-- `silver.baseline_scores`: incremental MERGE on (wiki_id, rev_id) from `bronze.baseline_scores`, joined to `silver.edits` for `event_time`; tests for one row per revision and probabilities in [0, 1].
-- Gold star schema: `fact_edit` (scored edits, editor attributes at edit time) and `fact_baseline` (incremental MERGE on (wiki_id, rev_id)), `dim_wiki`, `dim_date`, `dim_user_hashed` (rebuilt each run); relationship tests from `fact_edit` to each dimension.
-- Replay path (design section 8): `make replay` (EventStreams `since` → Kafka `edits.replay.v1`, with a report of events sent), `make replay-bronze` (Spark `replay_job`, availableNow → `bronze.edits_replay`), `silver.edits` MERGEs replayed events with `source = 'replay'`, and `make replay-check` (the replay-count check).
-- Airflow 3.3 (`make batch`, own container, LocalExecutor): `editguard_dbt_hourly` runs `dbt build` at :15 every hour; `editguard_maintenance_daily` runs `maintain_tables` at 02:30 UTC.
-- Iceberg maintenance macros (`maintain_tables`): OPTIMIZE (today and yesterday by default) and VACUUM with 7-day snapshot retention for every incremental table.
+- M2 (stream and batch together; milestone tag `m2-stream-and-batch`):
+  - dbt project for the Athena batch layer (`transform/`, `make dbt ENV=… CMD=…`).
+  - `silver.edits`: incremental MERGE on `event_id` from `bronze.edits`, article edits only, usernames replaced by a salted hash, `raw_json` dropped; tests for unique and not-null `event_id` and accepted values.
+  - `silver.baseline_scores`: incremental MERGE on (wiki_id, rev_id) from `bronze.baseline_scores`, joined to `silver.edits` for `event_time`; tests for one row per revision and probabilities in [0, 1].
+  - Gold star schema: `fact_edit` (scored edits, editor attributes at edit time) and `fact_baseline` (incremental MERGE on (wiki_id, rev_id)), `dim_wiki`, `dim_date`, `dim_user_hashed` (rebuilt each run); relationship tests from `fact_edit` to each dimension.
+  - Replay path (design section 8): `make replay` (EventStreams `since` → Kafka `edits.replay.v1`, with a report of events sent), `make replay-bronze` (Spark `replay_job`, availableNow → `bronze.edits_replay`), `silver.edits` MERGEs replayed events with `source = 'replay'`, and `make replay-check` (the replay-count check).
+  - Airflow 3.3 (`make batch`, own container, LocalExecutor): `editguard_dbt_hourly` runs `dbt build` at :15 every hour; `editguard_maintenance_daily` runs `maintain_tables` at 02:30 UTC.
+  - Iceberg maintenance macros (`maintain_tables`): OPTIMIZE (today and yesterday by default) and VACUUM with 7-day snapshot retention for every incremental table.
 
 ### Changed
-- The live job runs a third query, `baseline`, landing Kafka `baseline.raw.v1` in the new table `bronze.baseline_scores` (ADR 0011). `--queries` runs a subset.
+- M2:
+  - The live job runs a third query, `baseline`, landing Kafka `baseline.raw.v1` in the new table `bronze.baseline_scores` (ADR 0011). `--queries` runs a subset.
 
 ### Fixed
-- Bronze Iceberg metadata no longer grows without bound: old `metadata.json` files are deleted after each commit (newest 100 kept), and the bronze query commits every 60 s instead of 10 s (scoring stays at 10 s, so flag latency is unchanged).
+- M2:
+  - Bronze Iceberg metadata no longer grows without bound: old `metadata.json` files are deleted after each commit (newest 100 kept), and the bronze query commits every 60 s instead of 10 s (scoring stays at 10 s, so flag latency is unchanged).
+
+### Known limitations
+- `silver.labels`, `silver.user_history_asof_hour` and `gold.fact_label` move to M4 with the labelling work; until then `rules-v0` scores without editor history.
+- Prod bronze still holds about 2 GB of `metadata.json` files written before the cleanup fix; the daily VACUUM removes them as they pass the 7-day retention (around 2026-10-04).
+- The live job and Airflow both need a valid SSO session; when it expires, they fail and retry until `aws sso login`, then catch up (Kafka keeps 7 days; dbt models are incremental).
+- A replay needs one of Wikimedia's 2 connections per IP, so the baseline producer is paused while `make replay` runs.
+- dbt inlines the username salt into Athena SQL, so it appears in Athena query history (45 days, account only) and in `transform/target/` (see `docs/security.md`).
 
 ## [0.1.0] - 2026-09-27 (MVP)
 
