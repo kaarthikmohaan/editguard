@@ -1,5 +1,5 @@
 # Kafka topics for the local cluster. Source of truth: docs/design.md section 9.
-# Topics for later milestones (edits.flagged in M1, edits.replay.v1 in M2) are added then.
+# Topics for later milestones (edits.replay.v1 in M2) are added then.
 
 terraform {
   required_version = ">= 1.16"
@@ -31,6 +31,10 @@ locals {
       config     = { "retention.ms" = tostring(7 * local.day_ms) }
     }
     "baseline.raw.v1" = {
+      partitions = 3
+      config     = { "retention.ms" = tostring(7 * local.day_ms) }
+    }
+    "edits.flagged" = {
       partitions = 3
       config     = { "retention.ms" = tostring(7 * local.day_ms) }
     }

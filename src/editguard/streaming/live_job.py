@@ -9,14 +9,17 @@ import argparse
 import os
 import signal
 import time
+from datetime import UTC, datetime
 from types import FrameType
 
-from pyspark.sql import SparkSession
+from pyspark.sql import DataFrame, SparkSession
+from pyspark.sql import functions as F
 
-from editguard.common.config import get_settings
+from editguard.common.config import Settings, get_settings
 from editguard.common.logs import configure_logging
 from editguard.streaming.bronze import BRONZE_DDL, decode_edits
 from editguard.streaming.catalogs import Catalog, catalog_for
+from editguard.streaming.flags import TIMESTAMP_FIELDS, FlagPublisher, flag_records, utc_rows
 
 PACKAGES = ",".join(
     [
@@ -50,6 +53,26 @@ def spark_session(catalog: Catalog) -> SparkSession:
     return builder.getOrCreate()
 
 
+def read_edits(
+    spark: SparkSession, settings: Settings, starting: str, max_offsets: int
+) -> DataFrame:
+    """edits.raw.v1 decoded and deduplicated on event_id within the watermark."""
+    kafka = (
+        spark.readStream.format("kafka")
+        .option("kafka.bootstrap.servers", settings.kafka_bootstrap_servers)
+        .option("subscribe", "edits.raw.v1")
+        .option("startingOffsets", starting)
+        .option("failOnDataLoss", "true")
+        .option("maxOffsetsPerTrigger", max_offsets)
+        .load()
+    )
+    return (
+        decode_edits(kafka)
+        .withWatermark("event_time", WATERMARK)
+        .dropDuplicatesWithinWatermark(["event_id"])
+    )
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawTextHelpFormatter
@@ -69,30 +92,56 @@ def main() -> None:
     spark = spark_session(catalog)
     spark.sparkContext.setLogLevel("WARN")
     spark.sql(BRONZE_DDL.format(table=table))
+    trigger = f"{args.trigger_seconds} seconds"
 
-    kafka = (
-        spark.readStream.format("kafka")
-        .option("kafka.bootstrap.servers", settings.kafka_bootstrap_servers)
-        .option("subscribe", "edits.raw.v1")
-        .option("startingOffsets", "earliest")
-        .option("failOnDataLoss", "true")
-        .option("maxOffsetsPerTrigger", args.max_offsets)
-        .load()
-    )
-    bronze = (
-        decode_edits(kafka)
-        .withWatermark("event_time", WATERMARK)
-        .dropDuplicatesWithinWatermark(["event_id"])
-    )
-    query = (
-        bronze.writeStream.format("iceberg")
+    # Query 1: bronze. Reads Kafka from the beginning so bronze holds the full history.
+    bronze_query = (
+        read_edits(spark, settings, "earliest", args.max_offsets)
+        .writeStream.queryName("bronze")
+        .format("iceberg")
         .outputMode("append")
-        .trigger(processingTime=f"{args.trigger_seconds} seconds")
+        .trigger(processingTime=trigger)
         .option("checkpointLocation", str(catalog.checkpoint_root / "live_job_bronze"))
         .option("fanout-enabled", "true")
         .toTable(table)
     )
-    log.info("started", table=table, query_id=str(query.id))
+
+    # Query 2: scoring. Starts at the newest offsets on its first run: flags are for
+    # patrollers now; old edits are scored offline (replay), not flooded into the queue.
+    publisher = FlagPublisher(settings)
+
+    def score_batch(batch: DataFrame, batch_id: int) -> None:
+        columns = [
+            F.date_format(name, "yyyy-MM-dd'T'HH:mm:ss.SSSX").alias(name)
+            if name in TIMESTAMP_FIELDS
+            else F.col(name)
+            for name in batch.columns
+            if name != "raw_json"
+        ]
+        rows = utc_rows(row.asDict() for row in batch.select(*columns).collect())
+        scored_at = datetime.now(UTC)
+        flags = flag_records(rows, scored_at)
+        publisher.publish(flags)
+        if flags:
+            oldest = min(flag["event_time"] for flag in flags)
+            log.info(
+                "flags",
+                batch_id=batch_id,
+                rows=len(rows),
+                flagged=len(flags),
+                max_latency_s=round((scored_at - oldest).total_seconds(), 1),
+            )
+
+    scoring_query = (
+        read_edits(spark, settings, "latest", args.max_offsets)
+        .writeStream.queryName("scoring")
+        .foreachBatch(score_batch)
+        .trigger(processingTime=trigger)
+        .option("checkpointLocation", str(catalog.checkpoint_root / "live_job_scoring"))
+        .start()
+    )
+    queries = [bronze_query, scoring_query]
+    log.info("started", table=table, queries=[q.name for q in queries])
 
     stopping = False
 
@@ -103,23 +152,29 @@ def main() -> None:
 
     signal.signal(signal.SIGINT, stop)
     signal.signal(signal.SIGTERM, stop)
-    last_batch = -1
-    while not stopping and query.isActive:
+    last_batch = {q.name: -1 for q in queries}
+    while not stopping and all(q.isActive for q in queries):
         time.sleep(1)
-        progress = query.lastProgress
-        if progress and progress["batchId"] != last_batch:
-            last_batch = progress["batchId"]
-            log.info(
-                "batch",
-                batch_id=last_batch,
-                input_rows=progress["numInputRows"],
-                rows_per_s=round(progress.get("processedRowsPerSecond", 0.0), 1),
-                duration_ms=progress["durationMs"].get("triggerExecution"),
-            )
-    while query.status["isTriggerActive"]:  # stop only between batches (ADR 0009)
-        time.sleep(0.2)
-    query.stop()
-    log.info("stopped", batches=last_batch + 1)
+        for q in queries:
+            progress = q.lastProgress
+            if progress and progress["batchId"] != last_batch[q.name]:
+                last_batch[q.name] = progress["batchId"]
+                if q.name == "bronze":
+                    log.info(
+                        "batch",
+                        query=q.name,
+                        batch_id=progress["batchId"],
+                        input_rows=progress["numInputRows"],
+                        duration_ms=progress["durationMs"].get("triggerExecution"),
+                    )
+    for q in queries:
+        while q.isActive and q.status["isTriggerActive"]:  # stop between batches (ADR 0009)
+            time.sleep(0.2)
+        q.stop()
+    failed = [q.name for q in queries if q.exception() is not None]
+    log.info("stopped", failed=failed)
+    if failed:
+        raise SystemExit(1)
 
 
 if __name__ == "__main__":
