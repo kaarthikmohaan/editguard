@@ -8,7 +8,8 @@ All notable changes are listed here. Format: [Keep a Changelog](https://keepacha
 - dbt project for the Athena batch layer (`transform/`, `make dbt ENV=… CMD=…`).
 - `silver.edits`: incremental MERGE on `event_id` from `bronze.edits`, article edits only, usernames replaced by a salted hash, `raw_json` dropped; tests for unique and not-null `event_id` and accepted values.
 - `silver.baseline_scores`: incremental MERGE on (wiki_id, rev_id) from `bronze.baseline_scores`, joined to `silver.edits` for `event_time`; tests for one row per revision and probabilities in [0, 1].
-- Iceberg maintenance macros (`maintain_tables`): OPTIMIZE (today and yesterday by default) and VACUUM with 7-day snapshot retention for `bronze.edits`, `bronze.baseline_scores` and `silver.edits`.
+- Gold star schema: `fact_edit` (scored edits, editor attributes at edit time) and `fact_baseline` (incremental MERGE on (wiki_id, rev_id)), `dim_wiki`, `dim_date`, `dim_user_hashed` (rebuilt each run); relationship tests from `fact_edit` to each dimension.
+- Iceberg maintenance macros (`maintain_tables`): OPTIMIZE (today and yesterday by default) and VACUUM with 7-day snapshot retention for every incremental table.
 
 ### Changed
 - The live job runs a third query, `baseline`, landing Kafka `baseline.raw.v1` in the new table `bronze.baseline_scores` (ADR 0011). `--queries` runs a subset.

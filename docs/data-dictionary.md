@@ -124,6 +124,8 @@ Features for an edit at hour H read the row for H − 1.
 
 ## gold.fact_edit
 
+One row per scored edit (non-bot article edits, `silver.edits.is_scored_population`). MERGE on (wiki_id, rev_id).
+
 | Field | Type | Meaning |
 | --- | --- | --- |
 | wiki_id, rev_id | string, bigint | Primary key. |
@@ -136,6 +138,7 @@ Features for an edit at hour H read the row for H − 1.
 | is_temp_at_edit | boolean | Temporary account at edit time. |
 | edit_count_at_edit | bigint | Editor's edit count at edit time. |
 | account_age_days_at_edit | int | Days since registration at edit time; null if unknown. |
+| ingested_at | timestamp | Technical: finds new rows on incremental runs. |
 
 ## gold.fact_score
 
@@ -151,7 +154,7 @@ Features for an edit at hour H read the row for H − 1.
 
 ## gold.fact_label, gold.fact_baseline
 
-Frozen copies of `silver.labels` and `silver.baseline_scores` for the edits in `fact_edit`.
+Frozen copies of `silver.labels` and `silver.baseline_scores` for the edits in `fact_edit` (same fields). `fact_baseline` is built in M2; `fact_label` arrives with the labels in M4.
 
 ## gold.dim_wiki, gold.dim_date, gold.dim_user_hashed
 

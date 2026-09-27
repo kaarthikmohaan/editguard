@@ -78,7 +78,7 @@ make dbt ENV=prod CMD="build --select edits"   # one model and its tests
 
 It also reads the username-hashing salt from Secrets Manager for that command (see `docs/security.md`). Targets map to the design's environments: `staging` writes `stg_silver` / `stg_gold` through workgroup `editguard-stg`; `prod` writes `prod_silver` / `prod_gold` through `editguard-prod`. dbt reads bronze (`<prefix>_bronze.edits`) and never writes it. Each Athena query is billed by data scanned and stopped at 1 GB by the workgroup.
 
-Table maintenance (Iceberg OPTIMIZE and VACUUM on Athena) for `bronze.edits`, `bronze.baseline_scores` and `silver.edits`, once a day (Airflow will schedule it):
+Table maintenance (Iceberg OPTIMIZE and VACUUM on Athena) for every incremental table (bronze, silver and gold facts), once a day (Airflow will schedule it):
 
 ```bash
 make dbt ENV=prod CMD="run-operation maintain_tables"                     # today and yesterday

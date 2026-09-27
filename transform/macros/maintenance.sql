@@ -16,13 +16,17 @@
 {# Snapshot retention: 7 days (runbook: Iceberg tables, snapshots 7 days). #}
 {% macro snapshot_retention_seconds() %}{{ return(604800) }}{% endmacro %}
 
-{# Each table with the timestamp column its daily OPTIMIZE filters on. #}
+{# Each incremental table with the timestamp column its daily OPTIMIZE filters on. Rebuilt
+   tables (the gold dimensions) are fresh on every run and need no maintenance. #}
 {% macro maintained_tables() %}
     {%- set prefix = target.schema.split('_')[0] -%}
     {{ return([
         [prefix ~ '_bronze.edits', 'event_time'],
         [prefix ~ '_bronze.baseline_scores', 'ingested_at'],
         [prefix ~ '_silver.edits', 'event_time'],
+        [prefix ~ '_silver.baseline_scores', 'event_time'],
+        [prefix ~ '_gold.fact_edit', 'event_time'],
+        [prefix ~ '_gold.fact_baseline', 'event_time'],
     ]) }}
 {% endmacro %}
 

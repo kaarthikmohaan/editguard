@@ -1,0 +1,44 @@
+version: 2
+
+models:
+  - name: fact_edit
+    description: One row per scored edit, editor attributes at edit time. See docs/data-dictionary.md.
+    columns:
+      - name: wiki_id
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_wiki')
+                field: wiki_id
+      - name: rev_id
+        data_tests: [not_null]
+      - name: date_key
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('dim_date')
+                field: date_key
+      - name: user_hash
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('dim_user_hashed')
+                field: user_hash
+  - name: fact_baseline
+    description: Wikimedia's revert-risk score for the edits in fact_edit.
+    columns:
+      - name: probability_true
+        data_tests: [not_null]
+  - name: dim_wiki
+    columns:
+      - name: wiki_id
+        data_tests: [unique, not_null]
+  - name: dim_date
+    columns:
+      - name: date_key
+        data_tests: [unique, not_null]
+  - name: dim_user_hashed
+    columns:
+      - name: user_hash
+        data_tests: [unique, not_null]
