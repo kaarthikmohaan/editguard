@@ -14,11 +14,10 @@ flags:
 
 models:
   editguard:
-    # Every table is Iceberg format v2 on Glue (ADR 0008).
+    # Every table is Iceberg on Glue. Athena always creates format v2 (ADR 0008); it rejects
+    # a format-version property, so v2 is checked on the table metadata instead.
     +table_type: iceberg
     +format: parquet
-    +table_properties:
-      format-version: "2"
     silver:
       +schema: silver
     gold:

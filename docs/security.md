@@ -65,3 +65,12 @@ Least privilege from Terraform:
 - Only diff text and edit metadata go to the LLM API; never usernames.
 - Diff excerpts are CC BY-SA 4.0 and link to their revision.
 - API use follows Wikimedia's User-Agent policy and rate limits (identified client, 200 requests/min tier; EventStreams ≤2 connections per IP).
+
+## Username salt in use
+
+`make dbt` reads the salt from Secrets Manager into the `USERNAME_SALT` environment variable for that one command; it is never written to git or `.env`. dbt inlines it into the SQL it sends to Athena, so it also appears in:
+
+- Athena query history for the workgroup (kept 45 days, visible only inside this AWS account);
+- `transform/target/` and `transform/logs/` on the laptop (gitignored).
+
+Do not share those folders or Athena query exports.

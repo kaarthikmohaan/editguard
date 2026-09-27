@@ -37,4 +37,6 @@ dbt: ## Run dbt on Athena for one environment: make dbt ENV=staging|prod CMD="de
 	@test -n "$(ENV)" -a -n "$(CMD)" || { echo 'usage: make dbt ENV=staging|prod CMD="debug"'; exit 1; }
 	cd transform && DBT_PROFILES_DIR=. \
 	  DATA_BUCKET=editguard-data-$$(aws sts get-caller-identity --query Account --output text)-ap-south-1 \
+	  USERNAME_SALT="$$(aws secretsmanager get-secret-value --secret-id editguard/username-salt \
+	    --query SecretString --output text)" \
 	  uv run --group transform dbt $(CMD) --target $(ENV)

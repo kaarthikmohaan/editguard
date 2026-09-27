@@ -70,11 +70,11 @@ Wikimedia revert-risk predictions for article edits.
 | probability_true | double | yes |  | Predicted probability the edit is reverted. |
 ## silver.edits
 
-Deduplicated union of `bronze.edits` and `bronze.edits_replay`, article-namespace edits only. Same fields as `bronze.edits` except:
+Deduplicated union of `bronze.edits` and `bronze.edits_replay`, article-namespace edits only. Same fields as `bronze.edits` except that `performer_user_text` and `raw_json` (which also holds the username) are dropped, and:
 
 | Field | Type | Meaning |
 | --- | --- | --- |
-| user_hash | string | Salted SHA-256 of `performer_user_text`. Replaces the username. |
+| user_hash | string | Salted SHA-256 (64 lowercase hex characters) of `performer_user_text`; null when the username is null. Replaces the username. |
 | byte_delta | bigint | `rev_size - prior_rev_size`. |
 | source | string | `live` or `replay`. |
 | is_scored_population | boolean | Non-bot article edit on a target wiki. |

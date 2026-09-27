@@ -1,0 +1,33 @@
+version: 2
+
+models:
+  - name: edits
+    description: >
+      Deduplicated article edits from bronze.edits (bronze.edits_replay joins in the replay
+      step). Same fields as bronze except user_hash replaces the username and raw_json is
+      dropped. See docs/data-dictionary.md.
+    columns:
+      - name: event_id
+        description: Primary key. The zero-duplicate check for M2.
+        data_tests: [unique, not_null]
+      - name: event_time
+        data_tests: [not_null]
+      - name: wiki_id
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [enwiki, hiwiki, bnwiki, tawiki, tewiki, mlwiki, knwiki, mrwiki]
+      - name: namespace_id
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [0]
+                quote: false
+      - name: source
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [live, replay]
+      - name: user_hash
+        description: Salted SHA-256 of performer_user_text; 64 hex characters.

@@ -73,9 +73,10 @@ The dbt project lives in `transform/` (models in `models/silver` and `models/gol
 ```bash
 make dbt ENV=staging CMD="debug"     # check the Athena connection
 make dbt ENV=staging CMD="build"     # run models and tests
+make dbt ENV=prod CMD="build --select edits"   # one model and its tests
 ```
 
-Targets map to the design's environments: `staging` writes `stg_silver` / `stg_gold` through workgroup `editguard-stg`; `prod` writes `prod_silver` / `prod_gold` through `editguard-prod`. dbt reads bronze (`<prefix>_bronze.edits`) and never writes it. Each Athena query is billed by data scanned and stopped at 1 GB by the workgroup.
+It also reads the username-hashing salt from Secrets Manager for that command (see `docs/security.md`). Targets map to the design's environments: `staging` writes `stg_silver` / `stg_gold` through workgroup `editguard-stg`; `prod` writes `prod_silver` / `prod_gold` through `editguard-prod`. dbt reads bronze (`<prefix>_bronze.edits`) and never writes it. Each Athena query is billed by data scanned and stopped at 1 GB by the workgroup.
 
 ### AWS access
 

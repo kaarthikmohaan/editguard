@@ -15,6 +15,7 @@ TRANSFORM = Path(__file__).parents[1] / "transform"
 def compile_inline(sql: str, target: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> str:
     """Compile a SQL snippet in the real project, offline (dbt compile needs no AWS for this)."""
     monkeypatch.setenv("DATA_BUCKET", "example-bucket")
+    monkeypatch.setenv("USERNAME_SALT", "test-salt")
     args = [
         "compile",
         "--inline",
@@ -41,3 +42,11 @@ def test_layers_map_to_environment_databases(target, prefix, tmp_path, monkeypat
     sql = "{{ source('bronze', 'edits') }} {{ generate_schema_name('gold', none) }}"
     compiled = compile_inline(sql, target, tmp_path, monkeypatch)
     assert compiled == f'"awsdatacatalog"."{prefix}_bronze"."edits" {prefix}_gold'
+
+
+def test_user_hash_is_salted_sha256_and_keeps_null(tmp_path, monkeypatch) -> None:
+    compiled = compile_inline(
+        "{{ user_hash('performer_user_text') }}", "prod", tmp_path, monkeypatch
+    )
+    assert "sha256(to_utf8('test-salt' || ':' || performer_user_text))" in compiled
+    assert compiled.startswith("case when performer_user_text is not null")  # null stays null
