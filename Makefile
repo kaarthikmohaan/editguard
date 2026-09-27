@@ -1,5 +1,5 @@
 .DEFAULT_GOAL := help
-.PHONY: help setup up down test lint infra dbt replay replay-bronze replay-check
+.PHONY: help setup up down test lint infra batch batch-down dbt replay replay-bronze replay-check
 
 AWS_PROFILE ?= editguard-dev
 export AWS_PROFILE
@@ -15,8 +15,14 @@ setup: ## Install dependencies and git hooks
 up: ## Start local services and wait until healthy
 	docker compose up -d --wait
 
-down: ## Stop local services (keeps data volumes)
-	docker compose down
+down: ## Stop local services, Airflow included (keeps data volumes)
+	docker compose --profile batch down
+
+batch: ## Start Airflow (hourly dbt build, daily maintenance); UI at http://localhost:8080
+	docker compose --profile batch up -d --build --wait airflow
+
+batch-down: ## Stop Airflow only
+	docker compose --profile batch stop airflow
 
 test: ## Run unit tests
 	uv run pytest

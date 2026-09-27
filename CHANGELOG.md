@@ -10,6 +10,7 @@ All notable changes are listed here. Format: [Keep a Changelog](https://keepacha
 - `silver.baseline_scores`: incremental MERGE on (wiki_id, rev_id) from `bronze.baseline_scores`, joined to `silver.edits` for `event_time`; tests for one row per revision and probabilities in [0, 1].
 - Gold star schema: `fact_edit` (scored edits, editor attributes at edit time) and `fact_baseline` (incremental MERGE on (wiki_id, rev_id)), `dim_wiki`, `dim_date`, `dim_user_hashed` (rebuilt each run); relationship tests from `fact_edit` to each dimension.
 - Replay path (design section 8): `make replay` (EventStreams `since` → Kafka `edits.replay.v1`, with a report of events sent), `make replay-bronze` (Spark `replay_job`, availableNow → `bronze.edits_replay`), `silver.edits` MERGEs replayed events with `source = 'replay'`, and `make replay-check` (the replay-count check).
+- Airflow 3.3 (`make batch`, own container, LocalExecutor): `editguard_dbt_hourly` runs `dbt build` at :15 every hour; `editguard_maintenance_daily` runs `maintain_tables` at 02:30 UTC.
 - Iceberg maintenance macros (`maintain_tables`): OPTIMIZE (today and yesterday by default) and VACUUM with 7-day snapshot retention for every incremental table.
 
 ### Changed

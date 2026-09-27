@@ -88,6 +88,17 @@ make dbt ENV=prod CMD="build --select edits"   # one model and its tests
 
 It also reads the username-hashing salt from Secrets Manager for that command (see `docs/security.md`). Targets map to the design's environments: `staging` writes `stg_silver` / `stg_gold` through workgroup `editguard-stg`; `prod` writes `prod_silver` / `prod_gold` through `editguard-prod`. dbt reads bronze (`<prefix>_bronze.edits`) and never writes it. Each Athena query is billed by data scanned and stopped at 1 GB by the workgroup.
 
+### Airflow (the batch schedule)
+
+`make batch` builds and starts Airflow 3.3 (LocalExecutor, one container, metadata in the local Postgres database `airflow`); `make batch-down` stops it. UI: http://localhost:8080 (bound to 127.0.0.1, no login). Two DAGs in `dags/editguard_batch.py`, both with `catchup=False` and one run at a time:
+
+| DAG | Schedule (UTC) | Runs |
+| --- | --- | --- |
+| `editguard_dbt_hourly` | 15 minutes past every hour | `dbt build` (silver, gold, 26 data tests) |
+| `editguard_maintenance_daily` | 02:30 | `run-operation maintain_tables` |
+
+They run dbt through `infra/airflow/dbt.sh` against `EDITGUARD_DBT_TARGET` from `.env` (`staging` if unset), with your SSO login from `~/.aws`. When the SSO session expires, tasks fail with a credentials error and retry twice; after `aws sso login` the next hourly run catches up (the models are incremental). A failed task's log is in the UI (DAG → run → task → Logs).
+
 Table maintenance (Iceberg OPTIMIZE and VACUUM on Athena) for every incremental table (bronze, silver and gold facts), once a day (Airflow will schedule it):
 
 ```bash

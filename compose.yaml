@@ -97,7 +97,43 @@ services:
       timeout: 5s
       retries: 12
 
+  # Batch layer scheduler (design: Airflow 3.3, LocalExecutor, its own container). Starts only
+  # with `make batch` (profile "batch"). Runs dbt against Athena with your SSO login (~/.aws,
+  # read-write so the SDK can refresh its token) and EDITGUARD_DBT_TARGET (staging unless set).
+  airflow:
+    profiles: ["batch"]
+    build: infra/airflow
+    image: editguard-airflow:local
+    restart: unless-stopped
+    mem_limit: 2g
+    depends_on:
+      postgres: {condition: service_healthy}
+    ports: ["127.0.0.1:8080:8080"]
+    entrypoint: /opt/editguard/infra/airflow/start.sh
+    volumes:
+      - .:/opt/editguard:ro
+      - ${HOME}/.aws:/home/airflow/.aws
+      - airflow-logs:/opt/airflow/logs
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/airflow
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__CORE__LOAD_EXAMPLES: "False"
+      AIRFLOW__CORE__DAGS_FOLDER: /opt/editguard/dags
+      # Local only (port bound to 127.0.0.1): no login page.
+      AIRFLOW__CORE__SIMPLE_AUTH_MANAGER_ALL_ADMINS: "True"
+      AWS_PROFILE: ${AWS_PROFILE:-editguard-dev}
+      EDITGUARD_DBT_TARGET: ${EDITGUARD_DBT_TARGET:-staging}
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8080/api/v2/monitor/health | grep -q healthy"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 60s
+
 volumes:
+  airflow-logs:
   kafka-1:
   kafka-2:
   kafka-3:
