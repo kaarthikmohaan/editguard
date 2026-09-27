@@ -1,5 +1,5 @@
 .DEFAULT_GOAL := help
-.PHONY: help setup up down test lint infra
+.PHONY: help setup up down test lint infra dbt
 
 AWS_PROFILE ?= editguard-dev
 export AWS_PROFILE
@@ -32,3 +32,9 @@ infra: ## Terraform plan + apply for one environment: make infra ENV=staging|pro
 	  -backend-config="bucket=editguard-tfstate-$$(aws sts get-caller-identity --query Account --output text)-ap-south-1" \
 	  -backend-config="key=env/$(ENV)/terraform.tfstate"
 	terraform -chdir=$(TF_ENV_DIR) apply -var-file=$(ENV).tfvars
+
+dbt: ## Run dbt on Athena for one environment: make dbt ENV=staging|prod CMD="debug"
+	@test -n "$(ENV)" -a -n "$(CMD)" || { echo 'usage: make dbt ENV=staging|prod CMD="debug"'; exit 1; }
+	cd transform && DBT_PROFILES_DIR=. \
+	  DATA_BUCKET=editguard-data-$$(aws sts get-caller-identity --query Account --output text)-ap-south-1 \
+	  uv run --group transform dbt $(CMD) --target $(ENV)

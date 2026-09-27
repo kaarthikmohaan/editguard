@@ -1,0 +1,9 @@
+version: 2
+
+sources:
+  - name: bronze
+    description: Written only by the Spark jobs (design section 7). dbt reads, never writes.
+    schema: "{{ target.schema.split('_')[0] }}_bronze"
+    tables:
+      - name: edits
+        description: Every edit event from Kafka, deduplicated within the 2-minute watermark.

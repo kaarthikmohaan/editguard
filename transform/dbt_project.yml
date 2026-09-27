@@ -1,0 +1,25 @@
+# EditGuard batch layer: bronze -> silver -> gold on Athena (design section 7, ADR 0003).
+# Run through make: make dbt ENV=staging|prod CMD="build"
+name: editguard
+version: "0.1.0"
+profile: editguard
+model-paths: ["models"]
+macro-paths: ["macros"]
+test-paths: ["tests"]
+target-path: "target"
+clean-targets: ["target", "dbt_packages", "logs"]
+
+flags:
+  send_anonymous_usage_stats: false
+
+models:
+  editguard:
+    # Every table is Iceberg format v2 on Glue (ADR 0008).
+    +table_type: iceberg
+    +format: parquet
+    +table_properties:
+      format-version: "2"
+    silver:
+      +schema: silver
+    gold:
+      +schema: gold

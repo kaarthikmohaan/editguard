@@ -64,6 +64,17 @@ docker compose exec kafka-1 /opt/kafka/bin/kafka-console-consumer.sh --bootstrap
   --formatter-property print.headers=true --formatter-property print.key=true
 ```
 
+### Batch layer (dbt on Athena)
+
+The dbt project lives in `transform/` (models in `models/silver` and `models/gold`, sources in `models/sources.yml`). Run it through make, which sets the bucket from your account and uses the `transform` dependency group:
+
+```bash
+make dbt ENV=staging CMD="debug"     # check the Athena connection
+make dbt ENV=staging CMD="build"     # run models and tests
+```
+
+Targets map to the design's environments: `staging` writes `stg_silver` / `stg_gold` through workgroup `editguard-stg`; `prod` writes `prod_silver` / `prod_gold` through `editguard-prod`. dbt reads bronze (`<prefix>_bronze.edits`) and never writes it. Each Athena query is billed by data scanned and stopped at 1 GB by the workgroup.
+
 ### AWS access
 
 Log in with IAM Identity Center (no long-lived keys): `aws sso login --profile editguard-dev`. Sessions last 8 hours. Check with `aws sts get-caller-identity --profile editguard-dev`; the ARN must contain `AWSReservedSSO_AdministratorAccess`.
