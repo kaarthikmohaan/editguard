@@ -78,6 +78,15 @@ make dbt ENV=prod CMD="build --select edits"   # one model and its tests
 
 It also reads the username-hashing salt from Secrets Manager for that command (see `docs/security.md`). Targets map to the design's environments: `staging` writes `stg_silver` / `stg_gold` through workgroup `editguard-stg`; `prod` writes `prod_silver` / `prod_gold` through `editguard-prod`. dbt reads bronze (`<prefix>_bronze.edits`) and never writes it. Each Athena query is billed by data scanned and stopped at 1 GB by the workgroup.
 
+Table maintenance (Iceberg OPTIMIZE and VACUUM on Athena) for `bronze.edits` and `silver.edits`, once a day (Airflow will schedule it):
+
+```bash
+make dbt ENV=prod CMD="run-operation maintain_tables"                     # today and yesterday
+make dbt ENV=prod CMD="run-operation maintain_tables --args '{days: null}'"   # whole tables
+```
+
+OPTIMIZE compacts small files and is safe while the live job appends (ADR 0009). Athena bills it for the partitions it reads, so the daily run covers only today and yesterday; use the whole-table form after a replay into older days. VACUUM expires snapshots older than 7 days and then deletes files no snapshot refers to once they are older than 7 days. Time travel and `rollback_to_snapshot` therefore reach back 7 days.
+
 ### AWS access
 
 Log in with IAM Identity Center (no long-lived keys): `aws sso login --profile editguard-dev`. Sessions last 8 hours. Check with `aws sts get-caller-identity --profile editguard-dev`; the ARN must contain `AWSReservedSSO_AdministratorAccess`.
