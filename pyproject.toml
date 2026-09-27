@@ -9,6 +9,7 @@ authors = [
 requires-python = ">=3.12"
 dependencies = [
     "confluent-kafka[avro,schemaregistry]>=2.15.1",
+    "duckdb>=1.5,<1.6",
     "fastavro>=1.12.2",
     "httpx>=0.28.1",
     "httpx-sse>=0.4.3",

@@ -50,6 +50,12 @@ until uv run python -m editguard.streaming.live_job --env prod; do sleep 30; don
 
 `--env staging|prod` writes `<prefix>_bronze.edits` on S3 through the Glue catalog, with its own checkpoint under `data/checkpoints/<env>/`. It needs `AWS_PROFILE` and `DATA_BUCKET` in `.env` and a valid SSO session. When the session expires (8 hours by default) the job stops with a credentials error; run `aws sso login --profile editguard-dev` and the loop resumes it from the checkpoint. Kafka keeps 7 days, so nothing is lost while it waits.
 
+List the top flags (the MVP read path, until the triage page in M5). It loads `edits.flagged` into DuckDB, keeps one row per edit and prints each with its latency and a diff link:
+
+```bash
+uv run python -m editguard.tools.top_flags --hours 24 --limit 20
+```
+
 Inspect the dead letter queue (headers `error_stage`, `error_type`, `error_message`, `source_topic`; value is the original event as JSON):
 
 ```bash
