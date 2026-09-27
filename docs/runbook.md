@@ -41,6 +41,12 @@ The `until` loop restarts the producer after a non-zero exit (a stand-in for a c
 
 Each logs a `stats` line every minute (`received`, `kept`, `dlq`, `gap_events`, `in_flight`). `upstream_gap` at error level means events were lost upstream.
 
+Run the Spark live job (Kafka `edits.raw.v1` → `bronze.edits`, deduplicated on `event_id` within the 2-minute watermark) in its own terminal. In dev it writes a local Iceberg table under `data/warehouse/` with its checkpoint under `data/checkpoints/` (both gitignored); a restart resumes from the checkpoint. Stop with Ctrl+C: it finishes the current micro-batch first.
+
+```bash
+uv run python -m editguard.streaming.live_job
+```
+
 Inspect the dead letter queue (headers `error_stage`, `error_type`, `error_message`, `source_topic`; value is the original event as JSON):
 
 ```bash
