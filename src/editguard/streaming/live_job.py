@@ -17,7 +17,7 @@ from pyspark.sql import functions as F
 
 from editguard.common.config import Settings, get_settings
 from editguard.common.logs import configure_logging
-from editguard.streaming.bronze import BRONZE_DDL, decode_edits
+from editguard.streaming.bronze import BRONZE_DDL, decode_edits, metadata_cleanup_sql
 from editguard.streaming.catalogs import Catalog, catalog_for
 from editguard.streaming.flags import TIMESTAMP_FIELDS, FlagPublisher, flag_records, utc_rows
 
@@ -73,14 +73,22 @@ def read_edits(
     )
 
 
-def main() -> None:
+def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawTextHelpFormatter
     )
     parser.add_argument("--env", choices=["dev", "staging", "prod"], default="dev")
-    parser.add_argument("--trigger-seconds", type=int, default=10)
+    # Each bronze batch is one Iceberg commit (one snapshot); 60 s keeps the snapshot count
+    # manageable and still meets the contract's edit-to-bronze p95 of 90 s.
+    parser.add_argument("--bronze-trigger-seconds", type=int, default=60)
+    # Scoring commits nothing to Iceberg, so it keeps a short trigger for flag latency.
+    parser.add_argument("--scoring-trigger-seconds", type=int, default=10)
     parser.add_argument("--max-offsets", type=int, default=50_000, help="per micro-batch")
-    args = parser.parse_args()
+    return parser
+
+
+def main() -> None:
+    args = build_parser().parse_args()
 
     settings = get_settings()
     catalog = catalog_for(args.env, settings)
@@ -92,7 +100,7 @@ def main() -> None:
     spark = spark_session(catalog)
     spark.sparkContext.setLogLevel("WARN")
     spark.sql(BRONZE_DDL.format(table=table))
-    trigger = f"{args.trigger_seconds} seconds"
+    spark.sql(metadata_cleanup_sql(table))
 
     # Query 1: bronze. Reads Kafka from the beginning so bronze holds the full history.
     bronze_query = (
@@ -100,7 +108,7 @@ def main() -> None:
         .writeStream.queryName("bronze")
         .format("iceberg")
         .outputMode("append")
-        .trigger(processingTime=trigger)
+        .trigger(processingTime=f"{args.bronze_trigger_seconds} seconds")
         .option("checkpointLocation", str(catalog.checkpoint_root / "live_job_bronze"))
         .option("fanout-enabled", "true")
         .toTable(table)
@@ -136,7 +144,7 @@ def main() -> None:
         read_edits(spark, settings, "latest", args.max_offsets)
         .writeStream.queryName("scoring")
         .foreachBatch(score_batch)
-        .trigger(processingTime=trigger)
+        .trigger(processingTime=f"{args.scoring_trigger_seconds} seconds")
         .option("checkpointLocation", str(catalog.checkpoint_root / "live_job_scoring"))
         .start()
     )

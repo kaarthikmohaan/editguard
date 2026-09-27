@@ -4,6 +4,12 @@ All notable changes are listed here. Format: [Keep a Changelog](https://keepacha
 
 ## [Unreleased]
 
+### Added
+- dbt project for the Athena batch layer (`transform/`, `make dbt ENV=… CMD=…`).
+
+### Fixed
+- Bronze Iceberg metadata no longer grows without bound: old `metadata.json` files are deleted after each commit (newest 100 kept), and the bronze query commits every 60 s instead of 10 s (scoring stays at 10 s, so flag latency is unchanged).
+
 ## [0.1.0] - 2026-09-27 (MVP)
 
 The thin slice works end to end: Wikipedia edit → producer → Kafka → Spark live job → `bronze.edits` on S3 → rule score → `edits.flagged` → DuckDB query of top flags, in 3 to 15 seconds.

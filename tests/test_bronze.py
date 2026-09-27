@@ -59,3 +59,32 @@ def test_decode_edits_reads_confluent_avro_and_uses_change_time() -> None:
         assert row["event_time"] == "2026-09-26 10:00:00"  # from raw_json.dt, in UTC
     finally:
         spark.stop()
+
+
+def test_metadata_cleanup_keeps_only_recent_metadata_files(tmp_path: Path) -> None:
+    from pyspark.sql import SparkSession
+
+    from editguard.streaming.bronze import BRONZE_DDL, metadata_cleanup_sql
+    from editguard.streaming.live_job import PACKAGES
+
+    spark = (
+        SparkSession.builder.master("local[1]")
+        .config("spark.jars.packages", PACKAGES)
+        .config("spark.sql.catalog.t", "org.apache.iceberg.spark.SparkCatalog")
+        .config("spark.sql.catalog.t.type", "hadoop")
+        .config("spark.sql.catalog.t.warehouse", str(tmp_path))
+        .getOrCreate()
+    )
+    try:
+        spark.sql(BRONZE_DDL.format(table="t.bronze.edits"))
+        spark.sql(metadata_cleanup_sql("t.bronze.edits", keep=2))
+        for i in range(5):  # 5 commits, as the live job makes one per batch
+            spark.sql(
+                "INSERT INTO t.bronze.edits (event_id, event_time, wiki_id) "
+                "VALUES (:id, timestamp '2026-09-27 10:00:00', 'enwiki')",
+                args={"id": f"e{i}"},
+            )
+        kept = list((tmp_path / "bronze/edits/metadata").glob("*.metadata.json"))
+        assert len(kept) == 3  # the current version plus the 2 previous ones
+    finally:
+        spark.stop()

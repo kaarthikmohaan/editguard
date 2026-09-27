@@ -29,6 +29,19 @@ PARTITIONED BY (days(event_time), wiki_id)
 TBLPROPERTIES ('format-version' = '2')
 """
 
+# Every commit writes a new metadata.json listing all snapshots, so keeping every old one
+# grows storage quadratically (2 GB after 1,858 commits). Keep the newest versions only.
+METADATA_VERSIONS_KEPT = 100
+
+
+def metadata_cleanup_sql(table: str, keep: int = METADATA_VERSIONS_KEPT) -> str:
+    """Make Iceberg delete old metadata.json files after each commit. Idempotent."""
+    return (
+        f"ALTER TABLE {table} SET TBLPROPERTIES ("
+        "'write.metadata.delete-after-commit.enabled' = 'true', "
+        f"'write.metadata.previous-versions-max' = '{keep}')"
+    )
+
 
 def change_time(raw_json: Column) -> Column:
     """ADR 0010: event_time is the event's top-level dt, read from raw_json so that
