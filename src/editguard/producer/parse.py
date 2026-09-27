@@ -33,7 +33,7 @@ def to_edit_event(event: dict[str, Any], ingested_at: datetime | None = None) ->
 
     return {
         "event_id": meta["id"],
-        "event_time": parse_ts(rev["rev_dt"]),
+        "event_time": parse_ts(event["dt"]),  # when the change happened (ADR 0010)
         "emitted_at": parse_ts(meta["dt"]),
         "ingested_at": ingested_at or datetime.now(UTC),
         "wiki_id": event["wiki_id"],

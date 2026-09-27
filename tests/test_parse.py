@@ -74,3 +74,12 @@ def test_missing_required_field_raises(raw_edit: dict[str, Any]) -> None:
     del broken["revision"]["rev_id"]
     with pytest.raises(KeyError):
         to_edit_event(broken)
+
+
+def test_delete_event_time_is_when_the_page_was_deleted(raw_edit: dict[str, Any]) -> None:
+    delete = copy.deepcopy(raw_edit)
+    delete["page_change_kind"] = "delete"
+    delete["dt"] = "2026-09-26T10:00:00Z"
+    delete["revision"]["rev_dt"] = "2012-05-12T08:34:10Z"  # the page's last edit, years ago
+    record = to_edit_event(delete)
+    assert record["event_time"] == datetime(2026, 9, 26, 10, 0, 0, tzinfo=UTC)
