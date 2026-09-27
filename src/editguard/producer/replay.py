@@ -29,8 +29,9 @@ from editguard.producer.streams import STREAMS
 
 REPLAY_TOPIC = "edits.replay.v1"
 REPORT_DIR = Path("data/replays")
-# EventStreams interleaves partitions, so an event just after `until` does not mean every
-# earlier one has arrived. Stop only once events are this far past the window.
+# EventStreams merges several upstream topic-partitions (one per data centre) and sends them
+# one after another, not in time order. The replay is finished only when every one of them has
+# delivered an event this far past the window.
 END_MARGIN = timedelta(minutes=5)
 
 
@@ -49,9 +50,30 @@ class ReplayWindow:
         emitted = parse_ts(event["meta"]["dt"])
         return emitted is not None and self.since <= emitted < self.until
 
-    def finished(self, event: dict[str, Any]) -> bool:
+    def past_end(self, event: dict[str, Any]) -> bool:
         emitted = parse_ts(event["meta"]["dt"])
         return emitted is not None and emitted >= self.until + END_MARGIN
+
+
+class ReplayProgress:
+    """Tracks which upstream topic-partitions have moved past the window."""
+
+    def __init__(self, window: ReplayWindow) -> None:
+        self.window = window
+        self.partitions: set[tuple[str, int]] = set()
+        self.past_end: set[tuple[str, int]] = set()
+
+    def observe(self, event: StreamEvent) -> None:
+        # The SSE id lists every topic-partition the stream is reading.
+        for position in json.loads(event.id):
+            self.partitions.add((position["topic"], position["partition"]))
+        meta = event.data["meta"]
+        if self.window.past_end(event.data):
+            self.past_end.add((meta["topic"], meta["partition"]))
+
+    @property
+    def finished(self) -> bool:
+        return bool(self.partitions) and self.past_end >= self.partitions
 
 
 def replay_events(
@@ -60,14 +82,17 @@ def replay_events(
     send: Callable[[dict[str, Any]], bool],
     should_stop: Callable[[], bool] = lambda: False,
 ) -> tuple[dict[str, int], set[str]]:
-    """Send the target-wiki events inside the window; stop once the stream is past it.
+    """Send the target-wiki events inside the window; stop once every upstream partition is
+    past it.
     Returns the counts and the IDs of the events sent to the replay topic."""
     counts = {"received": 0, "in_window": 0, "sent": 0, "dlq": 0}
     sent_ids: set[str] = set()
+    progress = ReplayProgress(window)
     for event in events:
         data = event.data
         counts["received"] += 1
-        if window.finished(data) or should_stop():
+        progress.observe(event)
+        if progress.finished or should_stop():
             break
         if not window.contains(data) or not is_target(data):
             continue
