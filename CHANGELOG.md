@@ -4,6 +4,10 @@ All notable changes are listed here. Format: [Keep a Changelog](https://keepacha
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-09-27 (MVP)
+
+The thin slice works end to end: Wikipedia edit → producer → Kafka → Spark live job → `bronze.edits` on S3 → rule score → `edits.flagged` → DuckDB query of top flags, in 3 to 15 seconds.
+
 ### Added
 - Design, ADRs 0001 to 0008, data contract, data dictionary, API spec, runbook, test strategy, security doc.
 - M0 (start recording):
@@ -14,17 +18,25 @@ All notable changes are listed here. Format: [Keep a Changelog](https://keepacha
   - AWS base in Terraform: versioned state bucket; data bucket; $5 budget alert (credits excluded); GitHub OIDC provider; username salt in Secrets Manager (write-only); staging and prod Glue databases, Athena workgroups with a 1 GB scan cutoff, and OIDC CI roles.
   - Day-1 checks: `editguard.tools.day1`, `llm_bench`, `snapshot_check`, `scripts/day1/dbt_merge`, `scripts/day1/optimize_concurrency.py`.
   - ADR 0009 with all nine day-1 results (accepted).
+- M1 (MVP):
+  - Spark live job (`editguard.streaming.live_job --env dev|staging|prod`): Kafka → Avro → `bronze.edits` (Iceberg v2, partitioned by day and wiki), deduplicated on `event_id` within a 2-minute watermark; local catalog for dev, Glue + S3 for staging and prod.
+  - `features.py` v0 (point-in-time editor and size features) and the explainable rule score `rules-v0` (flag threshold 0.44).
+  - `edits.flagged` topic; the live job's scoring query publishes flagged edits as `FlaggedEdit` Avro.
+  - `editguard.tools.top_flags`: DuckDB query of the top flags with latency and diff links.
+
+### Changed
+- `event_time` is the event's top-level `dt` (when the change happened) for every kind; contract 1.0.0 → 1.1.0 (ADR 0010).
 
 ### Fixed
 - Kafka and Schema Registry addresses use `127.0.0.1` to avoid IPv6 connection failures.
 - Schema Registry restarts with the brokers (`depends_on … restart: true`).
 
-<!--
-## [0.1.0] - YYYY-MM-DD  (MVP)
-### Added
-- Producer with safe resume and gap detection.
-- Spark live job to bronze; rule score; edits.flagged.
+### Known limitations
+- `rules-v0` has low precision: most flags at the threshold come from "temporary account + no edit summary" alone, and a series of edits by one editor produces a series of flags. History features (M2), labels (M4), the LLM (M5) and the model (M6) address this.
+- Suppressed-revision deletes without `rev_size` go to `edits.dlq` until the contract change in M3.
+- The prod live job needs a valid SSO session; when it expires, the job waits for `aws sso login` and catches up from Kafka.
 
+<!--
 ## [0.5.0] - YYYY-MM-DD  (first evaluation)
 ## [1.0.0] - YYYY-MM-DD  (acceptance checklist complete)
 -->
