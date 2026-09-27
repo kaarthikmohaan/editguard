@@ -11,6 +11,7 @@ import argparse
 import json
 import signal
 import sys
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass, replace
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -23,7 +24,7 @@ from editguard.common.config import get_settings
 from editguard.common.logs import configure_logging
 from editguard.producer.kafka_sink import RecordSink, build_producer, build_serializer
 from editguard.producer.parse import is_target, parse_ts
-from editguard.producer.sse import iter_events
+from editguard.producer.sse import StreamEvent, iter_events
 from editguard.producer.streams import STREAMS
 
 REPLAY_TOPIC = "edits.replay.v1"
@@ -51,6 +52,32 @@ class ReplayWindow:
     def finished(self, event: dict[str, Any]) -> bool:
         emitted = parse_ts(event["meta"]["dt"])
         return emitted is not None and emitted >= self.until + END_MARGIN
+
+
+def replay_events(
+    events: Iterable[StreamEvent],
+    window: ReplayWindow,
+    send: Callable[[dict[str, Any]], bool],
+    should_stop: Callable[[], bool] = lambda: False,
+) -> tuple[dict[str, int], set[str]]:
+    """Send the target-wiki events inside the window; stop once the stream is past it.
+    Returns the counts and the IDs of the events sent to the replay topic."""
+    counts = {"received": 0, "in_window": 0, "sent": 0, "dlq": 0}
+    sent_ids: set[str] = set()
+    for event in events:
+        data = event.data
+        counts["received"] += 1
+        if window.finished(data) or should_stop():
+            break
+        if not window.contains(data) or not is_target(data):
+            continue
+        counts["in_window"] += 1
+        if send(data):
+            counts["sent"] += 1
+            sent_ids.add(data["meta"]["id"])
+        else:
+            counts["dlq"] += 1
+    return counts, sent_ids
 
 
 def report_path(window: ReplayWindow, report_dir: Path = REPORT_DIR) -> Path:
@@ -82,25 +109,15 @@ def main() -> None:
 
     signal.signal(signal.SIGINT, stop)
     signal.signal(signal.SIGTERM, stop)
-    counts = {"received": 0, "in_window": 0, "sent": 0, "dlq": 0}
-    sent_ids: set[str] = set()
     log.info("starting", since=args.since, until=args.until)
     headers = {"User-Agent": settings.user_agent}
     with httpx.Client(headers=headers, timeout=httpx.Timeout(10.0, read=60.0)) as client:
-        for event in iter_events(client, spec.name, since=args.since):
-            counts["received"] += 1
-            if window.finished(event) or stopping:
-                break
-            if not window.contains(event) or not is_target(event.data):
-                continue
-            counts["in_window"] += 1
-            if sink.send(event.data):
-                counts["sent"] += 1
-                sent_ids.add(event.data["meta"]["id"])
-            else:
-                counts["dlq"] += 1
-            if counts["received"] % 50_000 == 0:
-                log.info("progress", **counts, at=event.data["meta"]["dt"])
+        counts, sent_ids = replay_events(
+            iter_events(client, spec.name, since=args.since),
+            window,
+            sink.send,
+            should_stop=lambda: stopping,
+        )
     unsent = kafka.flush(60)
     complete = not stopping and unsent == 0
     report = {
