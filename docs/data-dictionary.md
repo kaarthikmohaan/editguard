@@ -42,6 +42,21 @@ Edit events as received, one row per upstream event.
 | schema_version | string | yes |  | Upstream $schema, e.g. /mediawiki/page/change/1.12.0. |
 | raw_json | string | yes |  | Full upstream event, kept for reprocessing. Purged for suppressed revisions. |
 
+## bronze.baseline_scores
+
+Wikimedia revert-risk predictions landed from Kafka `baseline.raw.v1` by the live job (ADR 0011). Append only; deduplicated on (wiki_id, rev_id, model_name, model_version) within the 2-minute watermark.
+
+| Field | Type | Required | Key | Meaning |
+| --- | --- | --- | --- | --- |
+| wiki_id | string | yes |  |  |
+| rev_id | bigint | yes |  |  |
+| model_name | string | yes |  | e.g. revertrisk-language-agnostic. |
+| model_version | string | yes |  |  |
+| probability_true | double | yes |  | Predicted probability the edit is reverted. |
+| ingested_at | timestamp | yes |  | Kafka message timestamp (when the producer sent it); the record has no time of its own. |
+| upstream_partition | int | yes |  | Kafka partition of `baseline.raw.v1`. |
+| upstream_offset | bigint | yes |  | Kafka offset. |
+
 ## edits.flagged
 
 Edits whose score passed the flag threshold.

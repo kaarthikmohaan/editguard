@@ -7,3 +7,5 @@ sources:
     tables:
       - name: edits
         description: Every edit event from Kafka, deduplicated within the 2-minute watermark.
+      - name: baseline_scores
+        description: Wikimedia revert-risk scores from baseline.raw.v1 (ADR 0011).

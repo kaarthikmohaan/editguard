@@ -8,3 +8,8 @@ def test_bronze_commits_less_often_than_scoring() -> None:
     assert args.scoring_trigger_seconds == 10
     # Contract: edit-to-bronze p95 < 90 s. Worst case = one full trigger plus the commit.
     assert args.bronze_trigger_seconds + 15 < 90
+
+
+def test_all_three_queries_run_by_default() -> None:
+    args = build_parser().parse_args([])
+    assert args.queries.split(",") == ["bronze", "scoring", "baseline"]

@@ -16,9 +16,14 @@
 {# Snapshot retention: 7 days (runbook: Iceberg tables, snapshots 7 days). #}
 {% macro snapshot_retention_seconds() %}{{ return(604800) }}{% endmacro %}
 
+{# Each table with the timestamp column its daily OPTIMIZE filters on. #}
 {% macro maintained_tables() %}
     {%- set prefix = target.schema.split('_')[0] -%}
-    {{ return([prefix ~ '_bronze.edits', prefix ~ '_silver.edits']) }}
+    {{ return([
+        [prefix ~ '_bronze.edits', 'event_time'],
+        [prefix ~ '_bronze.baseline_scores', 'ingested_at'],
+        [prefix ~ '_silver.edits', 'event_time'],
+    ]) }}
 {% endmacro %}
 
 {% macro set_retention(table, seconds) %}
@@ -29,25 +34,25 @@
     ) %}
 {% endmacro %}
 
-{% macro optimize_sql(table, days) %}
+{% macro optimize_sql(table, days, time_column='event_time') %}
     {%- set sql = "OPTIMIZE " ~ table ~ " REWRITE DATA USING BIN_PACK" -%}
     {%- if days is not none -%}
-        {%- set sql = sql ~ " WHERE event_time >= current_date - interval '" ~ days ~ "' day" -%}
+        {%- set sql = sql ~ " WHERE " ~ time_column ~ " >= current_date - interval '" ~ days ~ "' day" -%}
     {%- endif -%}
     {{ return(sql) }}
 {% endmacro %}
 
-{% macro maintain_table(table, days=1, retention_seconds=none) %}
+{% macro maintain_table(table, days=1, retention_seconds=none, time_column='event_time') %}
     {%- set retention = retention_seconds or snapshot_retention_seconds() -%}
     {% do set_retention(table, retention) %}
-    {% do run_query(optimize_sql(table, days)) %}
+    {% do run_query(optimize_sql(table, days, time_column)) %}
     {{ log("OPTIMIZE " ~ table ~ " (" ~ ("all days" if days is none else "last " ~ days ~ " day(s) + today") ~ "): done", info=True) }}
     {% do run_query("VACUUM " ~ table) %}
     {{ log("VACUUM " ~ table ~ ": done (retention " ~ retention ~ " s)", info=True) }}
 {% endmacro %}
 
 {% macro maintain_tables(days=1) %}
-    {% for table in maintained_tables() %}
-        {% do maintain_table(table, days) %}
+    {% for table, time_column in maintained_tables() %}
+        {% do maintain_table(table, days, time_column=time_column) %}
     {% endfor %}
 {% endmacro %}

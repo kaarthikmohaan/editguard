@@ -41,7 +41,7 @@ The `until` loop restarts the producer after a non-zero exit (a stand-in for a c
 
 Each logs a `stats` line every minute (`received`, `kept`, `dlq`, `gap_events`, `in_flight`). `upstream_gap` at error level means events were lost upstream.
 
-Run the Spark live job in its own terminal. It runs two streaming queries: `bronze` (Kafka `edits.raw.v1` → `bronze.edits`, deduplicated on `event_id` within the 2-minute watermark, from the earliest offset, one Iceberg commit every 60 s) and `scoring` (the same stream from the latest offset on first start, every 10 s, rule score `rules-v0`, flagged edits → `edits.flagged`; it logs a `flags` line with `max_latency_s` for each batch that flagged something). In dev it writes a local Iceberg table under `data/warehouse/` with its checkpoint under `data/checkpoints/` (both gitignored); a restart resumes from the checkpoint. Stop with Ctrl+C: it finishes the current micro-batch first.
+Run the Spark live job in its own terminal. It runs three streaming queries: `bronze` (Kafka `edits.raw.v1` → `bronze.edits`, deduplicated on `event_id` within the 2-minute watermark, from the earliest offset, one Iceberg commit every 60 s), `baseline` (Kafka `baseline.raw.v1` → `bronze.baseline_scores`, from the earliest offset, every 60 s; ADR 0011) and `scoring` (the stream of edits from the latest offset on first start, every 10 s, rule score `rules-v0`, flagged edits → `edits.flagged`; it logs a `flags` line with `max_latency_s` for each batch that flagged something). In dev it writes a local Iceberg table under `data/warehouse/` with its checkpoint under `data/checkpoints/` (both gitignored); a restart resumes from the checkpoint. Stop with Ctrl+C: it finishes the current micro-batch first.
 
 ```bash
 uv run python -m editguard.streaming.live_job                 # dev: local.bronze.edits
@@ -78,7 +78,7 @@ make dbt ENV=prod CMD="build --select edits"   # one model and its tests
 
 It also reads the username-hashing salt from Secrets Manager for that command (see `docs/security.md`). Targets map to the design's environments: `staging` writes `stg_silver` / `stg_gold` through workgroup `editguard-stg`; `prod` writes `prod_silver` / `prod_gold` through `editguard-prod`. dbt reads bronze (`<prefix>_bronze.edits`) and never writes it. Each Athena query is billed by data scanned and stopped at 1 GB by the workgroup.
 
-Table maintenance (Iceberg OPTIMIZE and VACUUM on Athena) for `bronze.edits` and `silver.edits`, once a day (Airflow will schedule it):
+Table maintenance (Iceberg OPTIMIZE and VACUUM on Athena) for `bronze.edits`, `bronze.baseline_scores` and `silver.edits`, once a day (Airflow will schedule it):
 
 ```bash
 make dbt ENV=prod CMD="run-operation maintain_tables"                     # today and yesterday

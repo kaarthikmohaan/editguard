@@ -1,4 +1,8 @@
-"""Live job: Kafka edits.raw.v1 -> bronze.edits (Iceberg), deduplicated within the watermark.
+"""Live job: Kafka -> bronze (Iceberg), plus live scoring. Three streaming queries:
+
+  bronze    edits.raw.v1 -> bronze.edits, deduplicated within the watermark
+  scoring   edits.raw.v1 -> rule score -> edits.flagged
+  baseline  baseline.raw.v1 -> bronze.baseline_scores (ADR 0011)
 
 Usage: uv run python -m editguard.streaming.live_job [--env dev|staging|prod]
 dev writes a local Iceberg table under data/warehouse; staging and prod write to S3 through
@@ -17,7 +21,14 @@ from pyspark.sql import functions as F
 
 from editguard.common.config import Settings, get_settings
 from editguard.common.logs import configure_logging
-from editguard.streaming.bronze import BRONZE_DDL, decode_edits, metadata_cleanup_sql
+from editguard.streaming.bronze import (
+    BASELINE_DDL,
+    BASELINE_KEY,
+    BRONZE_DDL,
+    decode_baseline,
+    decode_edits,
+    metadata_cleanup_sql,
+)
 from editguard.streaming.catalogs import Catalog, catalog_for
 from editguard.streaming.flags import TIMESTAMP_FIELDS, FlagPublisher, flag_records, utc_rows
 
@@ -53,21 +64,29 @@ def spark_session(catalog: Catalog) -> SparkSession:
     return builder.getOrCreate()
 
 
-def read_edits(
-    spark: SparkSession, settings: Settings, starting: str, max_offsets: int
+QUERIES = ("bronze", "scoring", "baseline")
+
+
+def read_topic(
+    spark: SparkSession, settings: Settings, topic: str, starting: str, max_offsets: int
 ) -> DataFrame:
-    """edits.raw.v1 decoded and deduplicated on event_id within the watermark."""
-    kafka = (
+    return (
         spark.readStream.format("kafka")
         .option("kafka.bootstrap.servers", settings.kafka_bootstrap_servers)
-        .option("subscribe", "edits.raw.v1")
+        .option("subscribe", topic)
         .option("startingOffsets", starting)
         .option("failOnDataLoss", "true")
         .option("maxOffsetsPerTrigger", max_offsets)
         .load()
     )
+
+
+def read_edits(
+    spark: SparkSession, settings: Settings, starting: str, max_offsets: int
+) -> DataFrame:
+    """edits.raw.v1 decoded and deduplicated on event_id within the watermark."""
     return (
-        decode_edits(kafka)
+        decode_edits(read_topic(spark, settings, "edits.raw.v1", starting, max_offsets))
         .withWatermark("event_time", WATERMARK)
         .dropDuplicatesWithinWatermark(["event_id"])
     )
@@ -84,11 +103,19 @@ def build_parser() -> argparse.ArgumentParser:
     # Scoring commits nothing to Iceberg, so it keeps a short trigger for flag latency.
     parser.add_argument("--scoring-trigger-seconds", type=int, default=10)
     parser.add_argument("--max-offsets", type=int, default=50_000, help="per micro-batch")
+    parser.add_argument(
+        "--queries",
+        default=",".join(QUERIES),
+        help="comma-separated subset to run, e.g. baseline (for testing)",
+    )
     return parser
 
 
 def main() -> None:
     args = build_parser().parse_args()
+    wanted = args.queries.split(",")
+    if unknown := set(wanted) - set(QUERIES):
+        raise SystemExit(f"unknown queries: {sorted(unknown)}")
 
     settings = get_settings()
     catalog = catalog_for(args.env, settings)
@@ -99,20 +126,23 @@ def main() -> None:
         os.environ.setdefault("AWS_PROFILE", settings.aws_profile)
     spark = spark_session(catalog)
     spark.sparkContext.setLogLevel("WARN")
-    spark.sql(BRONZE_DDL.format(table=table))
-    spark.sql(metadata_cleanup_sql(table))
+    bronze_trigger = f"{args.bronze_trigger_seconds} seconds"
+    queries = []
 
     # Query 1: bronze. Reads Kafka from the beginning so bronze holds the full history.
-    bronze_query = (
-        read_edits(spark, settings, "earliest", args.max_offsets)
-        .writeStream.queryName("bronze")
-        .format("iceberg")
-        .outputMode("append")
-        .trigger(processingTime=f"{args.bronze_trigger_seconds} seconds")
-        .option("checkpointLocation", str(catalog.checkpoint_root / "live_job_bronze"))
-        .option("fanout-enabled", "true")
-        .toTable(table)
-    )
+    if "bronze" in wanted:
+        spark.sql(BRONZE_DDL.format(table=table))
+        spark.sql(metadata_cleanup_sql(table))
+        queries.append(
+            read_edits(spark, settings, "earliest", args.max_offsets)
+            .writeStream.queryName("bronze")
+            .format("iceberg")
+            .outputMode("append")
+            .trigger(processingTime=bronze_trigger)
+            .option("checkpointLocation", str(catalog.checkpoint_root / "live_job_bronze"))
+            .option("fanout-enabled", "true")
+            .toTable(table)
+        )
 
     # Query 2: scoring. Starts at the newest offsets on its first run: flags are for
     # patrollers now; old edits are scored offline (replay), not flooded into the queue.
@@ -140,16 +170,35 @@ def main() -> None:
                 max_latency_s=round((scored_at - oldest).total_seconds(), 1),
             )
 
-    scoring_query = (
-        read_edits(spark, settings, "latest", args.max_offsets)
-        .writeStream.queryName("scoring")
-        .foreachBatch(score_batch)
-        .trigger(processingTime=f"{args.scoring_trigger_seconds} seconds")
-        .option("checkpointLocation", str(catalog.checkpoint_root / "live_job_scoring"))
-        .start()
-    )
-    queries = [bronze_query, scoring_query]
-    log.info("started", table=table, queries=[q.name for q in queries])
+    if "scoring" in wanted:
+        queries.append(
+            read_edits(spark, settings, "latest", args.max_offsets)
+            .writeStream.queryName("scoring")
+            .foreachBatch(score_batch)
+            .trigger(processingTime=f"{args.scoring_trigger_seconds} seconds")
+            .option("checkpointLocation", str(catalog.checkpoint_root / "live_job_scoring"))
+            .start()
+        )
+
+    # Query 3: baseline scores (ADR 0011). From the beginning, like bronze.
+    if "baseline" in wanted:
+        baseline_table = catalog.bronze_baseline
+        spark.sql(BASELINE_DDL.format(table=baseline_table))
+        spark.sql(metadata_cleanup_sql(baseline_table))
+        topic = read_topic(spark, settings, "baseline.raw.v1", "earliest", args.max_offsets)
+        queries.append(
+            decode_baseline(topic)
+            .withWatermark("ingested_at", WATERMARK)
+            .dropDuplicatesWithinWatermark(BASELINE_KEY)
+            .writeStream.queryName("baseline")
+            .format("iceberg")
+            .outputMode("append")
+            .trigger(processingTime=bronze_trigger)
+            .option("checkpointLocation", str(catalog.checkpoint_root / "live_job_baseline"))
+            .option("fanout-enabled", "true")
+            .toTable(baseline_table)
+        )
+    log.info("started", queries=[q.name for q in queries])
 
     stopping = False
 
@@ -167,7 +216,7 @@ def main() -> None:
             progress = q.lastProgress
             if progress and progress["batchId"] != last_batch[q.name]:
                 last_batch[q.name] = progress["batchId"]
-                if q.name == "bronze":
+                if q.name in ("bronze", "baseline"):
                     log.info(
                         "batch",
                         query=q.name,

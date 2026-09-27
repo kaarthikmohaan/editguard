@@ -139,6 +139,7 @@ See the diagram in the README. Streaming handles flags; everything else is hourl
 | --- | --- | --- | --- | --- |
 | `bronze.edits` | Spark live job | Append, dedup within watermark | days(event_time), wiki_id | 90 days |
 | `bronze.edits_replay` | Spark replay job | Append | days(event_time), wiki_id | 90 days |
+| `bronze.baseline_scores` | Spark live job (ADR 0011) | Append, dedup within watermark | days(ingested_at), wiki_id | 90 days |
 | `silver.edits` | dbt-athena | MERGE on event_id | days(event_time), wiki_id | Project |
 | `silver.labels` | dbt-athena | MERGE on (wiki_id, rev_id) | days(event_time) | Project |
 | `silver.baseline_scores` | dbt-athena | MERGE on (wiki_id, rev_id) | days(event_time) | Project |

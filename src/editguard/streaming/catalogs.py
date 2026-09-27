@@ -24,6 +24,11 @@ class Catalog:
     bronze_edits: str
     checkpoint_root: Path
 
+    @property
+    def bronze_baseline(self) -> str:
+        """bronze.baseline_scores in the same catalog and database (ADR 0011)."""
+        return self.bronze_edits.removesuffix(".edits") + ".baseline_scores"
+
 
 def catalog_for(env: str, settings: Settings) -> Catalog:
     """Build the catalog settings for dev, staging or prod."""

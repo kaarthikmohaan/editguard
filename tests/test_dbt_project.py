@@ -54,11 +54,15 @@ def test_user_hash_is_salted_sha256_and_keeps_null(tmp_path, monkeypatch) -> Non
 
 def test_maintenance_covers_both_layers_and_limits_daily_optimize(tmp_path, monkeypatch) -> None:
     sql = (
-        "{{ maintained_tables() | join(',') }}|{{ optimize_sql('t', 1) }}|"
-        "{{ optimize_sql('t', none) }}|{{ snapshot_retention_seconds() }}"
+        "{% for t, c in maintained_tables() %}{{ t }}:{{ c }},{% endfor %}|"
+        "{{ optimize_sql('t', 1) }}|{{ optimize_sql('t', none) }}|"
+        "{{ snapshot_retention_seconds() }}"
     )
     tables, daily, full, retention = compile_inline(sql, "prod", tmp_path, monkeypatch).split("|")
-    assert tables == "prod_bronze.edits,prod_silver.edits"
+    assert tables == (
+        "prod_bronze.edits:event_time,prod_bronze.baseline_scores:ingested_at,"
+        "prod_silver.edits:event_time,"
+    )
     assert daily.endswith("WHERE event_time >= current_date - interval '1' day")
     assert full == "OPTIMIZE t REWRITE DATA USING BIN_PACK"
     assert retention == "604800"  # 7 days, the runbook's snapshot retention

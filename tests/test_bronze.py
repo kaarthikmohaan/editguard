@@ -88,3 +88,47 @@ def test_metadata_cleanup_keeps_only_recent_metadata_files(tmp_path: Path) -> No
         assert len(kept) == 3  # the current version plus the 2 previous ones
     finally:
         spark.stop()
+
+
+def test_decode_baseline_takes_time_from_kafka_timestamp() -> None:
+    from pyspark.sql import SparkSession
+
+    from editguard.streaming.bronze import decode_baseline
+    from editguard.streaming.live_job import PACKAGES
+
+    schema = parse_schema(
+        json.loads((ROOT / "contracts/generated/baseline_scores.avsc").read_text())
+    )
+    buf = io.BytesIO()
+    record = {
+        "wiki_id": "enwiki",
+        "rev_id": 42,
+        "model_name": "revertrisk-language-agnostic",
+        "model_version": "3",
+        "probability_true": 0.91,
+    }
+    schemaless_writer(buf, schema, record)
+    value = b"\x00" + struct.pack(">I", 9) + buf.getvalue()
+
+    spark = (
+        SparkSession.builder.master("local[1]")
+        .config("spark.jars.packages", PACKAGES)
+        .config("spark.sql.session.timeZone", "UTC")
+        .getOrCreate()
+    )
+    try:
+        df = spark.createDataFrame(
+            # tz-aware: a naive datetime would be read as the Mac's local time (IST).
+            [(bytearray(value), datetime(2026, 9, 27, 10, 0, tzinfo=UTC), 2, 1234)],
+            "value binary, timestamp timestamp, partition int, offset long",
+        )
+        row = (
+            decode_baseline(df)
+            .selectExpr("*", "cast(ingested_at AS STRING) AS ingested_at_utc")
+            .first()
+        )
+        assert (row["wiki_id"], row["rev_id"], row["probability_true"]) == ("enwiki", 42, 0.91)
+        assert row["ingested_at_utc"] == "2026-09-27 10:00:00"
+        assert (row["upstream_partition"], row["upstream_offset"]) == (2, 1234)
+    finally:
+        spark.stop()
