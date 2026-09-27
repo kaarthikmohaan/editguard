@@ -31,3 +31,17 @@ models:
                 values: [live, replay]
       - name: user_hash
         description: Salted SHA-256 of performer_user_text; 64 hex characters.
+
+  - name: baseline_scores
+    description: >
+      Wikimedia revert-risk score per article edit, one row per (wiki_id, rev_id), from
+      bronze.baseline_scores (ADR 0011). event_time is the edit's, from silver.edits.
+    columns:
+      - name: wiki_id
+        data_tests: [not_null]
+      - name: rev_id
+        data_tests: [not_null]
+      - name: event_time
+        data_tests: [not_null]
+      - name: probability_true
+        data_tests: [not_null]

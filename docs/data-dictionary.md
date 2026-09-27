@@ -83,6 +83,9 @@ Wikimedia revert-risk predictions for article edits.
 | model_name | string | yes |  | e.g. revertrisk-language-agnostic. |
 | model_version | string | yes |  |  |
 | probability_true | double | yes |  | Predicted probability the edit is reverted. |
+| event_time | timestamp | yes |  | The edit's event_time, from `silver.edits`; scores for edits outside silver are left out. |
+| ingested_at | timestamp | yes |  | From `bronze.baseline_scores`; newest score wins if a revision was scored twice. |
+
 ## silver.edits
 
 Deduplicated union of `bronze.edits` and `bronze.edits_replay`, article-namespace edits only. Same fields as `bronze.edits` except that `performer_user_text` and `raw_json` (which also holds the username) are dropped, and:
