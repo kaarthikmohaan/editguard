@@ -44,8 +44,11 @@ Each logs a `stats` line every minute (`received`, `kept`, `dlq`, `gap_events`, 
 Run the Spark live job (Kafka `edits.raw.v1` → `bronze.edits`, deduplicated on `event_id` within the 2-minute watermark) in its own terminal. In dev it writes a local Iceberg table under `data/warehouse/` with its checkpoint under `data/checkpoints/` (both gitignored); a restart resumes from the checkpoint. Stop with Ctrl+C: it finishes the current micro-batch first.
 
 ```bash
-uv run python -m editguard.streaming.live_job
+uv run python -m editguard.streaming.live_job                 # dev: local.bronze.edits
+until uv run python -m editguard.streaming.live_job --env prod; do sleep 30; done   # prod
 ```
+
+`--env staging|prod` writes `<prefix>_bronze.edits` on S3 through the Glue catalog, with its own checkpoint under `data/checkpoints/<env>/`. It needs `AWS_PROFILE` and `DATA_BUCKET` in `.env` and a valid SSO session. When the session expires (8 hours by default) the job stops with a credentials error; run `aws sso login --profile editguard-dev` and the loop resumes it from the checkpoint. Kafka keeps 7 days, so nothing is lost while it waits.
 
 Inspect the dead letter queue (headers `error_stage`, `error_type`, `error_message`, `source_topic`; value is the original event as JSON):
 

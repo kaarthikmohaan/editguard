@@ -28,6 +28,9 @@ class Settings(BaseSettings):
     schema_registry_url: str = "http://127.0.0.1:8081"
     contact_email: str = Field(min_length=3, pattern=r".+@.+")
     log_level: str = "INFO"
+    aws_region: str = "ap-south-1"
+    aws_profile: str | None = None  # SSO profile for staging/prod jobs, e.g. editguard-dev
+    data_bucket: str | None = None  # editguard-data-<account>-<region>; needed for staging/prod
 
     @property
     def user_agent(self) -> str:

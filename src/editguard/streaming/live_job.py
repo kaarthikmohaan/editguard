@@ -1,13 +1,14 @@
 """Live job: Kafka edits.raw.v1 -> bronze.edits (Iceberg), deduplicated within the watermark.
 
-Usage: uv run python -m editguard.streaming.live_job [--trigger-seconds 10]
-Dev writes to a local Iceberg catalog under data/warehouse (gitignored).
+Usage: uv run python -m editguard.streaming.live_job [--env dev|staging|prod]
+dev writes a local Iceberg table under data/warehouse; staging and prod write to S3 through
+the Glue catalog using the AWS_PROFILE from .env (SSO). Checkpoints: data/checkpoints/<env>/.
 """
 
 import argparse
+import os
 import signal
 import time
-from pathlib import Path
 from types import FrameType
 
 from pyspark.sql import SparkSession
@@ -15,23 +16,24 @@ from pyspark.sql import SparkSession
 from editguard.common.config import get_settings
 from editguard.common.logs import configure_logging
 from editguard.streaming.bronze import BRONZE_DDL, decode_edits
+from editguard.streaming.catalogs import Catalog, catalog_for
 
 PACKAGES = ",".join(
     [
         "org.apache.iceberg:iceberg-spark-runtime-4.1_2.13:1.11.0",
+        "org.apache.iceberg:iceberg-aws-bundle:1.11.0",
+        # Lets the AWS SDK use an SSO profile (sso-session); same SDK version as the bundle.
+        "software.amazon.awssdk:ssooidc:2.44.4",
         "org.apache.spark:spark-sql-kafka-0-10_2.13:4.1.3",
         "org.apache.spark:spark-avro_2.13:4.1.3",
     ]
 )
-TABLE = "local.bronze.edits"
-WAREHOUSE = Path("data/warehouse")
-CHECKPOINT = Path("data/checkpoints/live_job_bronze")
 WATERMARK = "2 minutes"  # design section 8; confirmed by ADR 0009 (p99 lateness 22.6 s)
 
 
-def spark_session() -> SparkSession:
-    return (
-        SparkSession.builder.appName("editguard-live-job")
+def spark_session(catalog: Catalog) -> SparkSession:
+    builder = (
+        SparkSession.builder.appName(f"editguard-live-job-{catalog.env}")
         .master("local[4]")
         .config("spark.jars.packages", PACKAGES)
         .config("spark.driver.memory", "3g")
@@ -39,29 +41,34 @@ def spark_session() -> SparkSession:
             "spark.sql.extensions",
             "org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions",
         )
-        .config("spark.sql.catalog.local", "org.apache.iceberg.spark.SparkCatalog")
-        .config("spark.sql.catalog.local.type", "hadoop")
-        .config("spark.sql.catalog.local.warehouse", str(WAREHOUSE.resolve()))
         .config("spark.sql.session.timeZone", "UTC")
         .config("spark.sql.shuffle.partitions", "4")
         .config("spark.ui.showConsoleProgress", "false")
-        .getOrCreate()
     )
+    for key, value in catalog.spark_conf.items():
+        builder = builder.config(key, value)
+    return builder.getOrCreate()
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawTextHelpFormatter
     )
+    parser.add_argument("--env", choices=["dev", "staging", "prod"], default="dev")
     parser.add_argument("--trigger-seconds", type=int, default=10)
     parser.add_argument("--max-offsets", type=int, default=50_000, help="per micro-batch")
     args = parser.parse_args()
 
     settings = get_settings()
-    log = configure_logging("live_job", settings.log_level)
-    spark = spark_session()
+    catalog = catalog_for(args.env, settings)
+    table = catalog.bronze_edits
+    log = configure_logging("live_job", settings.log_level).bind(env=args.env)
+    if args.env != "dev" and settings.aws_profile:
+        # The JVM's AWS SDK reads AWS_PROFILE from the environment, not from .env.
+        os.environ.setdefault("AWS_PROFILE", settings.aws_profile)
+    spark = spark_session(catalog)
     spark.sparkContext.setLogLevel("WARN")
-    spark.sql(BRONZE_DDL.format(table=TABLE))
+    spark.sql(BRONZE_DDL.format(table=table))
 
     kafka = (
         spark.readStream.format("kafka")
@@ -81,11 +88,11 @@ def main() -> None:
         bronze.writeStream.format("iceberg")
         .outputMode("append")
         .trigger(processingTime=f"{args.trigger_seconds} seconds")
-        .option("checkpointLocation", str(CHECKPOINT))
+        .option("checkpointLocation", str(catalog.checkpoint_root / "live_job_bronze"))
         .option("fanout-enabled", "true")
-        .toTable(TABLE)
+        .toTable(table)
     )
-    log.info("started", table=TABLE, query_id=str(query.id))
+    log.info("started", table=table, query_id=str(query.id))
 
     stopping = False
 
