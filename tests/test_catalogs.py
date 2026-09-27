@@ -29,6 +29,7 @@ def test_prod_uses_glue_prefix_and_skip_archive(monkeypatch: pytest.MonkeyPatch)
     assert catalog.spark_conf["spark.sql.catalog.glue.glue.skip-archive"] == "true"
     assert catalog.checkpoint_root == Path("data/checkpoints/prod")
     assert catalog.bronze_baseline == "glue.prod_bronze.baseline_scores"
+    assert catalog.bronze_replay == "glue.prod_bronze.edits_replay"
 
 
 def test_staging_uses_stg_prefix(monkeypatch: pytest.MonkeyPatch) -> None:

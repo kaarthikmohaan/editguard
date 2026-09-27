@@ -42,6 +42,10 @@ Edit events as received, one row per upstream event.
 | schema_version | string | yes |  | Upstream $schema, e.g. /mediawiki/page/change/1.12.0. |
 | raw_json | string | yes |  | Full upstream event, kept for reprocessing. Purged for suppressed revisions. |
 
+## bronze.edits_replay
+
+Same fields as `bronze.edits`. Written only by the replay job from Kafka `edits.replay.v1`; append only, no watermark (duplicates are removed by the `silver.edits` MERGE). `ingested_at` is when the replay producer sent the event.
+
 ## bronze.baseline_scores
 
 Wikimedia revert-risk predictions landed from Kafka `baseline.raw.v1` by the live job (ADR 0011). Append only; deduplicated on (wiki_id, rev_id, model_name, model_version) within the 2-minute watermark.

@@ -20,12 +20,17 @@ class StreamEvent:
 
 
 def iter_events(
-    client: httpx.Client, stream: str, last_event_id: str | None = None
+    client: httpx.Client,
+    stream: str,
+    last_event_id: str | None = None,
+    since: str | None = None,
 ) -> Iterator[StreamEvent]:
-    """Yield events from one stream, resuming after last_event_id if given."""
+    """Yield events from one stream, resuming after last_event_id if given, or starting at
+    the ISO 8601 time `since` (EventStreams keeps about 7 days) for a replay."""
     headers = {"Last-Event-ID": last_event_id} if last_event_id else {}
+    params = {"since": since} if since else {}
     url = f"{STREAM_BASE_URL}/{stream}"
-    with connect_sse(client, "GET", url, headers=headers) as source:
+    with connect_sse(client, "GET", url, headers=headers, params=params) as source:
         source.response.raise_for_status()
         for sse in source.iter_sse():
             if sse.event != "message" or not sse.data:

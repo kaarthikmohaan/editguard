@@ -27,3 +27,15 @@ def test_sends_last_event_id_when_resuming() -> None:
     headers: dict[str, str] = {}
     list(iter_events(make_client(headers), "mediawiki.page_change.v1", '[{"offset":1}]'))
     assert headers["last-event-id"] == '[{"offset":1}]'
+
+
+def test_sends_since_for_a_replay() -> None:
+    seen: dict[str, str] = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen["url"] = str(request.url)
+        return httpx.Response(200, text=SSE_BODY, headers={"content-type": "text/event-stream"})
+
+    client = httpx.Client(transport=httpx.MockTransport(handler))
+    list(iter_events(client, "mediawiki.page_change.v1", since="2026-09-26T10:00:00Z"))
+    assert seen["url"].endswith("/mediawiki.page_change.v1?since=2026-09-26T10%3A00%3A00Z")

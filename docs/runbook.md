@@ -58,6 +58,16 @@ List the top flags (the MVP read path, until the triage page in M5). It loads `e
 uv run python -m editguard.tools.top_flags --hours 24 --limit 20
 ```
 
+### Replay a past window (design section 8)
+
+Use it to fill a gap (for example after `upstream_gap`, or the laptop being off for more than a few hours) within the last ~7 days. Replayed events go through their own topic (`edits.replay.v1`), Spark job, checkpoint and table (`bronze.edits_replay`), because days-old events would fall behind the live job's watermark. `silver.edits` MERGEs them in with `source = 'replay'`; an event the live job already delivered keeps `source = 'live'`.
+
+1. Wikimedia allows 2 stream connections per IP: stop the baseline producer (Ctrl+C). It resumes from its bookmark afterwards.
+2. `make replay SINCE=2026-09-26T12:00:00Z UNTIL=2026-09-26T13:00:00Z` (window on the event's emission time, UTC). It stops 5 minutes past `UNTIL` and writes `data/replays/replay-<window>.json` with the distinct events sent. Exit code 1 means it did not complete; run it again (a rerun is harmless).
+3. Restart the baseline producer.
+4. `make replay-bronze ENV=prod`: appends everything replayed so far to `bronze.edits_replay` and exits.
+5. `make dbt ENV=prod CMD="build"`, then `make replay-check ENV=prod REPORT=data/replays/replay-<window>.json`. It fails unless `bronze.edits_replay` holds exactly the events the producer sent and every article event is in `silver.edits` once; it also prints how many gaps the replay filled.
+
 Inspect the dead letter queue (headers `error_stage`, `error_type`, `error_message`, `source_topic`; value is the original event as JSON):
 
 ```bash
@@ -106,7 +116,7 @@ Terraform state lives in the versioned bucket `editguard-tfstate-<account_id>-ap
 | Alert | Threshold | Likely cause | Fix |
 | --- | --- | --- | --- |
 | NoEventsReceived | No events for 10 min | Stream down, network, producer crashed | Check `docker logs producer`; `curl -I https://stream.wikimedia.org/v2/ui/`; restart producer |
-| UpstreamOffsetGap | Any gap | Producer resumed from a wrong ID | Stop producer; inspect `_producer_state`; replay the gap window via `make replay SINCE=<ts>`; write a postmortem |
+| UpstreamOffsetGap | Any gap | Producer resumed from a wrong ID | Stop producer; inspect `_producer_state`; replay the gap window (section 1, Replay a past window); write a postmortem |
 | ConsumerLagHigh | > 2 min for 10 min | Spark slow or stopped | Check Spark UI (localhost:4040); memory; restart job (resumes from checkpoint) |
 | StreamingQueryStopped | Query not active | Exception, `failOnDataLoss` | Read the exception; if data loss, record the gap and restart with a new checkpoint only after writing it down |
 | DLQRateHigh | > 0.5% for 15 min | Upstream schema change | Inspect `edits.dlq` headers; compare with the schema changelog; update the contract via PR |

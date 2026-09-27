@@ -23,6 +23,7 @@
     {{ return([
         [prefix ~ '_bronze.edits', 'event_time'],
         [prefix ~ '_bronze.baseline_scores', 'ingested_at'],
+        [prefix ~ '_bronze.edits_replay', 'event_time'],
         [prefix ~ '_silver.edits', 'event_time'],
         [prefix ~ '_silver.baseline_scores', 'event_time'],
         [prefix ~ '_gold.fact_edit', 'event_time'],
@@ -57,6 +58,11 @@
 
 {% macro maintain_tables(days=1) %}
     {% for table, time_column in maintained_tables() %}
+        {%- set db, name = table.split('.') -%}
+        {%- if adapter.get_relation(database=target.database, schema=db, identifier=name) is none -%}
+            {{ log("skip " ~ table ~ ": not created yet", info=True) }}
+            {%- continue -%}
+        {%- endif -%}
         {% do maintain_table(table, days, time_column=time_column) %}
     {% endfor %}
 {% endmacro %}

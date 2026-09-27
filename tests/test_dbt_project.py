@@ -61,6 +61,7 @@ def test_maintenance_covers_both_layers_and_limits_daily_optimize(tmp_path, monk
     tables, daily, full, retention = compile_inline(sql, "prod", tmp_path, monkeypatch).split("|")
     assert tables == (
         "prod_bronze.edits:event_time,prod_bronze.baseline_scores:ingested_at,"
+        "prod_bronze.edits_replay:event_time,"
         "prod_silver.edits:event_time,prod_silver.baseline_scores:event_time,"
         "prod_gold.fact_edit:event_time,prod_gold.fact_baseline:event_time,"
     )

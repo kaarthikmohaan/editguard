@@ -29,6 +29,11 @@ class Catalog:
         """bronze.baseline_scores in the same catalog and database (ADR 0011)."""
         return self.bronze_edits.removesuffix(".edits") + ".baseline_scores"
 
+    @property
+    def bronze_replay(self) -> str:
+        """bronze.edits_replay: written only by the replay job (design section 7)."""
+        return self.bronze_edits + "_replay"
+
 
 def catalog_for(env: str, settings: Settings) -> Catalog:
     """Build the catalog settings for dev, staging or prod."""

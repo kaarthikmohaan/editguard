@@ -1,6 +1,7 @@
 {#
   silver.edits: one row per article edit event, forever (design section 7, data dictionary).
-  Bronze dedups only within the 2-minute watermark; this MERGE on event_id removes the rest.
+  Bronze dedups only within the 2-minute watermark; this MERGE on event_id removes the rest,
+  including events that arrive again through a replay (bronze.edits_replay).
   Usernames never leave bronze: performer_user_text becomes a salted hash, raw_json is dropped.
 #}
 {{ config(
@@ -11,7 +12,10 @@
     on_schema_change='fail',
 ) }}
 
-with bronze as (
+{#- bronze.edits_replay exists only after the first replay (design section 8). -#}
+{%- set replay = load_relation(source('bronze', 'edits_replay')) -%}
+
+with live as (
     select *, 'live' as source
     from {{ source('bronze', 'edits') }}
     where namespace_id = 0
@@ -22,8 +26,34 @@ with bronze as (
     {% endif %}
 ),
 
+{% if replay is not none %}
+replayed as (
+    -- Replayed events fill gaps. One the live job already delivered is left alone, so an
+    -- edit keeps source = 'live' once it has it.
+    select r.*, 'replay' as source
+    from {{ replay }} as r
+    where r.namespace_id = 0
+    {% if is_incremental() %}
+      and r.ingested_at > (select max(ingested_at) - interval '3' hour from {{ this }})
+      and not exists (select 1 from {{ this }} as t where t.event_id = r.event_id)
+    {% endif %}
+),
+{% endif %}
+
+bronze as (
+    select * from live
+    {% if replay is not none %}
+    union all
+    select * from replayed
+    {% endif %}
+),
+
 first_copy as (
-    select *, row_number() over (partition by event_id order by ingested_at) as copy_number
+    -- One copy per event in this run; the live copy wins over a replayed one.
+    select *, row_number() over (
+        partition by event_id
+        order by case source when 'live' then 0 else 1 end, ingested_at
+    ) as copy_number
     from bronze
 )
 
