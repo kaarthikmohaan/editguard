@@ -14,6 +14,7 @@ Every requirement in [design.md](design.md#2-requirements) maps to at least one 
 | dbt (DuckDB) | `make dbt-ci` (`pytest -m dbt`) | All dbt models and data tests on DuckDB from the 1,000-event fixture, twice (incremental), with replay gaps and duplicates | Every PR |
 | dbt (Athena) | `make dbt ENV=staging CMD=build`, `make format-check ENV=staging` (`.github/workflows/nightly.yml`) | Same models and data tests on real Athena, staging; every Iceberg table format v2 | Nightly, 02:00 IST, and on demand |
 | End-to-end | `make e2e` | 1,000-event fixture through the whole stack to `GET /v1/flags` | Every PR touching pipeline code; release smoke test |
+| Release smoke | `scripts/smoke/replay_smoke.sh <producer image> <spark image>` | The release's images replay 10 minutes of EventStreams into staging; dbt build; replay-count check (T-DBT-REPLAY-COUNT) | Every release tag, before prod approval |
 | Performance | `make perf-stream`, `make perf-api` | 10x replay burst; locust on the API | Before each release |
 | Security | pip-audit, gitleaks, trivy, ruff `S` | Dependencies, secrets, images, Terraform, code | Every PR; Dependabot weekly |
 | LLM evals | `make evals` | Per-language quality, 20 injection cases | On prompt or model change |

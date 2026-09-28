@@ -28,9 +28,18 @@ All ports bind to `127.0.0.1` only. Settings come from `.env` (copy `.env.exampl
 
 Measured idle on M4 Pro, Docker 12 GB: about 1.9 GiB total.
 
+Streaming services (profile `stream`, started by `make stream`, stopped by `make stream-down`; images from the root `Dockerfile`):
+
+| Service | Image target | Memory cap | Notes |
+| --- | --- | --- | --- |
+| producer-edits, producer-baseline | `producer` | 256 MiB each | Bookmarks live in Kafka, so a restart resumes with no gaps; 45 s to flush on stop |
+| live-job | `spark` (Java 17, connector jars baked in) | 4.5 GiB | `--env ${EDITGUARD_ENV:-dev}`; checkpoints in `./data` (mounted at the same path); `~/.aws` mounted for SSO; Spark UI on 4040; 90 s to finish a micro-batch on stop |
+
+Docker restarts them after any exit (`restart: unless-stopped`), which replaces the `until` loops below. Logs: `docker compose logs -f live-job` (or a producer). Never run the compose producers and the terminal producers at the same time: Wikimedia allows 2 stream connections per IP, and two live jobs would share a checkpoint.
+
 Kafka topics are defined in `infra/terraform/kafka/main.tf` (design section 9). Create or update them after the first `make up`, or after wiping volumes: `terraform -chdir=infra/terraform/kafka apply`. Check one with `docker compose exec kafka-1 /opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:19092 --describe --topic edits.raw.v1`.
 
-Run the producers, one terminal each (Wikimedia allows 2 stream connections per IP, so do not run `producer.watch` at the same time). Stop with Ctrl+C; a restart resumes from the saved bookmark with no gaps:
+For development without Docker, run the producers one terminal each (Wikimedia allows 2 stream connections per IP, so do not run `producer.watch` at the same time). Stop with Ctrl+C; a restart resumes from the saved bookmark with no gaps:
 
 ```bash
 until uv run python -m editguard.producer --stream edits; do sleep 30; done      # page_change -> edits.raw.v1
@@ -139,8 +148,17 @@ Terraform state lives in the versioned bucket `editguard-tfstate-<account_id>-ap
 | Env | How |
 | --- | --- |
 | dev | `make up` from your branch |
-| staging | Push a tag `vX.Y.Z`; CD applies Terraform and dbt to staging, then runs the end-to-end smoke test |
-| prod | Approve the `prod` environment in GitHub Actions; then `make deploy VERSION=vX.Y.Z` on the laptop |
+| staging | Push a tag `vX.Y.Z` (it must equal `v` + the version in `pyproject.toml`). `.github/workflows/release.yml` builds the arm64 images, pushes them to GHCR with a GitHub release listing their digests, fails if staging differs from Terraform (ADR 0012: apply with `make infra ENV=staging` on the laptop), then runs the smoke test `scripts/smoke/replay_smoke.sh`: the release's images replay a 10-minute window into staging, dbt builds it and the replay-count check must pass; then the format check |
+| prod | Approve the `prod` environment in GitHub Actions (the release's last job waits for it); then `make deploy VERSION=vX.Y.Z` on the laptop |
+
+`make deploy VERSION=vX.Y.Z`, run from that tag (`git fetch --tags && git switch --detach vX.Y.Z`):
+
+1. `editguard.tools.deploy` refuses unless HEAD is the tag with no local changes and GitHub shows the release's `prod` job finished (it runs only after a reviewer approves), then writes `.deploy.env` (gitignored): `EDITGUARD_ENV=prod` and both images pinned by digest from the GitHub release.
+2. `make infra ENV=prod` (review the plan; type `yes` only if it is expected).
+3. `make dbt ENV=prod CMD=build`.
+4. `make stream`: pulls the pinned images and restarts the producers and the live job on them; they resume from their bookmarks and checkpoints.
+
+The images must be pullable without a login: after the first release, set both GHCR packages (`editguard-producer`, `editguard-spark`) to public in GitHub (Packages → package settings → Change visibility). Delete `.deploy.env` to go back to local builds on dev.
 
 ## 3. Alerts
 

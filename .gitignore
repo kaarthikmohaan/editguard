@@ -9,6 +9,7 @@ htmlcov/
 
 # Secrets and local settings (never commit)
 .env
+.deploy.env
 *.pem
 
 # Terraform

@@ -1,0 +1,8 @@
+# Only the project files, the code and the generated contract schemas go into the images.
+*
+!pyproject.toml
+!uv.lock
+!README.md
+!src/
+!contracts/generated/
+src/**/__pycache__

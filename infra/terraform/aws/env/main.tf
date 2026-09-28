@@ -197,6 +197,56 @@ data "aws_iam_policy_document" "ci_access" {
       resources = [data.aws_secretsmanager_secret.salt.arn]
     }
   }
+
+  # Release drift check (ADR 0012): CI runs `terraform plan` on staging and fails if AWS differs
+  # from git. Read-only: exactly the calls a plan of this module makes. Apply stays on the laptop.
+  dynamic "statement" {
+    for_each = var.env == "staging" ? local.drift_check_reads : {}
+    content {
+      sid       = statement.key
+      actions   = statement.value.actions
+      resources = statement.value.resources
+    }
+  }
+
+  dynamic "statement" {
+    for_each = var.env == "staging" ? [1] : []
+    content {
+      sid       = "DriftCheckListState"
+      actions   = ["s3:ListBucket"]
+      resources = ["arn:aws:s3:::${local.tfstate_bucket}"]
+      condition {
+        test     = "StringLike"
+        variable = "s3:prefix"
+        values   = ["env:/*", "env/${var.env}/*"]
+      }
+    }
+  }
+}
+
+locals {
+  tfstate_bucket = "editguard-tfstate-${local.account_id}-${var.region}"
+  drift_check_reads = {
+    DriftCheckReadState = {
+      actions   = ["s3:GetObject"]
+      resources = ["arn:aws:s3:::${local.tfstate_bucket}/env/${var.env}/terraform.tfstate"]
+    }
+    DriftCheckReadOwnRole = {
+      actions   = ["iam:GetRole", "iam:GetRolePolicy", "iam:ListRolePolicies", "iam:ListAttachedRolePolicies"]
+      resources = ["arn:aws:iam::${local.account_id}:role/editguard-ci-${var.env}"]
+    }
+    DriftCheckDescribeSalt = {
+      actions   = ["secretsmanager:DescribeSecret", "secretsmanager:GetResourcePolicy"]
+      resources = [data.aws_secretsmanager_secret.salt.arn]
+    }
+    DriftCheckReadTags = {
+      actions = ["glue:GetTags", "athena:ListTagsForResource"]
+      resources = concat(
+        [for l in local.layers : "arn:aws:glue:${var.region}:${local.account_id}:database/${var.prefix}_${l}"],
+        [aws_athena_workgroup.this.arn],
+      )
+    }
+  }
 }
 
 data "aws_secretsmanager_secret" "salt" {

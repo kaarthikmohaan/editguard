@@ -1,0 +1,144 @@
+# Release (runbook section 2; ADR 0012). On a version tag vX.Y.Z:
+#   images   build the producer and Spark images (arm64, like the laptop), push them to GHCR,
+#            and publish a GitHub release listing their digests
+#   staging  Terraform drift check, then the smoke test: the release's images replay a
+#            10-minute window into staging, dbt builds it, and the replay-count check must pass;
+#            then every staging table must be Iceberg format v2
+#   prod     waits for a reviewer to approve the `prod` environment; `make deploy` on the
+#            laptop refuses a version whose prod approval is missing
+name: release
+
+on:
+  push:
+    tags: ["v*.*.*"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+env:
+  UV_FROZEN: "1"
+  AWS_REGION: ap-south-1
+  # Wikimedia's User-Agent policy asks for a contact; this address and the repo URL are public.
+  CONTACT_EMAIL: 158012573+kaarthikmohaan@users.noreply.github.com
+  REGISTRY: ghcr.io/kaarthikmohaan
+
+jobs:
+  images:
+    name: images to GHCR
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 30
+    permissions:
+      contents: write  # create the GitHub release
+      packages: write  # push to GHCR
+    outputs:
+      producer: ${{ steps.push.outputs.producer }}
+      spark: ${{ steps.push.outputs.spark }}
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - name: the tag matches the project version
+        run: |
+          version=$(python3 -c "import tomllib; print(tomllib.load(open('pyproject.toml', 'rb'))['project']['version'])")
+          test "v$version" = "$GITHUB_REF_NAME" \
+            || { echo "tag $GITHUB_REF_NAME but pyproject.toml says $version"; exit 1; }
+      - run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+      - name: build and push, record digests
+        id: push
+        run: |
+          for target in producer spark; do
+            image="$REGISTRY/editguard-$target:$GITHUB_REF_NAME"
+            docker build --target "$target" -t "$image" .
+            docker push "$image"
+            ref=$(docker inspect --format '{{index .RepoDigests 0}}' "$image")
+            echo "$target=$ref" >> "$GITHUB_OUTPUT"
+            echo "$target: \`$ref\`" >> notes.md
+          done
+      - name: GitHub release with the image digests
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          { echo; echo "Deploy to prod after approval: \`make deploy VERSION=$GITHUB_REF_NAME\`"; } >> notes.md
+          gh release create "$GITHUB_REF_NAME" --verify-tag --title "$GITHUB_REF_NAME" --notes-file notes.md
+
+  staging:
+    name: staging (drift check and smoke test)
+    needs: images
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 45
+    environment: staging
+    permissions:
+      contents: read
+      id-token: write
+      packages: read
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: astral-sh/setup-uv@v10.2.0
+      - run: uv sync --all-groups
+      - uses: hashicorp/setup-terraform@v4.0.1
+        with:
+          terraform_version: 1.16.4
+          terraform_wrapper: false
+      - name: AWS CLI (not preinstalled on every arm64 image)
+        run: |
+          command -v aws || {
+            curl -sSfL https://awscli.amazonaws.com/awscli-exe-linux-aarch64.zip -o awscliv2.zip
+            unzip -q awscliv2.zip && sudo ./aws/install
+          }
+      - uses: aws-actions/configure-aws-credentials@v6.3.0
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          role-session-name: editguard-release-${{ github.run_id }}
+          aws-region: ${{ env.AWS_REGION }}
+          mask-aws-account-id: true
+      - name: hide the account ID and salt from the public logs; set DATA_BUCKET
+        run: |
+          account=$(aws sts get-caller-identity --query Account --output text)
+          salt=$(aws secretsmanager get-secret-value --secret-id editguard/username-salt \
+            --query SecretString --output text)
+          echo "::add-mask::$account"
+          echo "::add-mask::$salt"
+          echo "DATA_BUCKET=editguard-data-$account-$AWS_REGION" >> "$GITHUB_ENV"
+          echo "TFSTATE_BUCKET=editguard-tfstate-$account-$AWS_REGION" >> "$GITHUB_ENV"
+      - name: named profile for the Makefile, dbt and boto3
+        run: |
+          aws configure set aws_access_key_id "$AWS_ACCESS_KEY_ID" --profile editguard-ci
+          aws configure set aws_secret_access_key "$AWS_SECRET_ACCESS_KEY" --profile editguard-ci
+          aws configure set aws_session_token "$AWS_SESSION_TOKEN" --profile editguard-ci
+          aws configure set region "$AWS_REGION" --profile editguard-ci
+          echo "AWS_PROFILE=editguard-ci" >> "$GITHUB_ENV"
+      - name: Terraform drift check (apply stays on the laptop, ADR 0012)
+        run: |
+          terraform -chdir=infra/terraform/aws/env init -input=false \
+            -backend-config="bucket=$TFSTATE_BUCKET" -backend-config="key=env/staging/terraform.tfstate"
+          status=0
+          terraform -chdir=infra/terraform/aws/env plan -input=false -lock=false -no-color \
+            -detailed-exitcode -var-file=staging.tfvars || status=$?
+          if [ "$status" -eq 2 ]; then
+            echo "::error::staging differs from git: run make infra ENV=staging on the laptop, then re-run"
+          fi
+          exit "$status"
+      - run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+      - name: smoke test with the release's images
+        run: scripts/smoke/replay_smoke.sh "${{ needs.images.outputs.producer }}" "${{ needs.images.outputs.spark }}"
+      - run: make format-check ENV=staging
+
+  prod:
+    name: prod approval
+    needs: [images, staging]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    environment: prod  # a required reviewer approves here; no AWS access in this job
+    steps:
+      - name: what to run on the laptop
+        run: |
+          {
+            echo "Approved for prod: $GITHUB_REF_NAME"
+            echo
+            echo "- producer: \`${{ needs.images.outputs.producer }}\`"
+            echo "- spark: \`${{ needs.images.outputs.spark }}\`"
+            echo
+            echo "On the laptop: \`make deploy VERSION=$GITHUB_REF_NAME\`"
+          } >> "$GITHUB_STEP_SUMMARY"

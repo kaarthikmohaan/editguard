@@ -1,9 +1,15 @@
 .DEFAULT_GOAL := help
-.PHONY: help setup up down test test-all coverage dbt-ci lint contract contract-check dlq-replay format-check infra batch batch-down dbt replay replay-bronze replay-check
+.PHONY: help setup up down stream stream-down images deploy test test-all coverage dbt-ci lint contract contract-check dlq-replay format-check infra batch batch-down dbt replay replay-bronze replay-check
 
 AWS_PROFILE ?= editguard-dev
 export AWS_PROFILE
 TF_ENV_DIR = infra/terraform/aws/env
+
+# After `make deploy`, .deploy.env pins prod and the release's images for every compose command.
+ifneq ($(wildcard .deploy.env),)
+include .deploy.env
+export EDITGUARD_ENV EDITGUARD_PRODUCER_IMAGE EDITGUARD_SPARK_IMAGE
+endif
 
 help: ## List targets
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*## "} {printf "  %-14s %s\n", $$1, $$2}'
@@ -17,6 +23,23 @@ up: ## Start local services and wait until healthy
 
 down: ## Stop local services, Airflow included (keeps data volumes)
 	docker compose --profile batch down
+
+stream: ## Start the producers and the Spark live job in Docker (released images after make deploy)
+	docker compose --profile stream up -d --wait producer-edits producer-baseline live-job
+
+stream-down: ## Stop the producers and the live job (they flush and save progress first)
+	docker compose --profile stream stop producer-edits producer-baseline live-job
+
+images: ## Build the producer and Spark images locally (used by make stream without .deploy.env)
+	env -u EDITGUARD_PRODUCER_IMAGE -u EDITGUARD_SPARK_IMAGE \
+	  docker compose --profile stream build producer-edits live-job
+
+deploy: ## Deploy an approved release to prod: make deploy VERSION=vX.Y.Z (from that tag)
+	@test -n "$(VERSION)" || { echo 'usage: make deploy VERSION=v0.2.0'; exit 1; }
+	uv run python -m editguard.tools.deploy $(VERSION)
+	$(MAKE) infra ENV=prod
+	$(MAKE) dbt ENV=prod CMD=build
+	$(MAKE) stream
 
 batch: ## Start Airflow (hourly dbt build, daily maintenance); UI at http://localhost:8080
 	docker compose --profile batch up -d --build --wait airflow

@@ -132,6 +132,52 @@ services:
       retries: 10
       start_period: 60s
 
+  # Streaming (profile "stream", `make stream`): the producers and the Spark live job, restarted
+  # by Docker after any exit (replaces the terminal tabs and `until` loops). The producers keep
+  # their bookmarks in Kafka; the live job keeps its checkpoints in ./data, mounted at the same
+  # path as on the host so dev's local Iceberg paths stay valid. EDITGUARD_ENV picks the live
+  # job's environment (dev unless set). Images are local builds (`make images`) unless
+  # `make deploy` pinned a release's images by digest in .deploy.env.
+  producer-edits:
+    <<: &producer
+      profiles: ["stream"]
+      build: {context: ., target: producer}
+      image: ${EDITGUARD_PRODUCER_IMAGE:-ghcr.io/kaarthikmohaan/editguard-producer:local}
+      restart: unless-stopped
+      mem_limit: 256m
+      stop_grace_period: 45s  # time to flush Kafka and save the bookmark
+      depends_on:
+        schema-registry: {condition: service_healthy}
+      environment: &stream-env
+        CONTACT_EMAIL: ${CONTACT_EMAIL}
+        KAFKA_BOOTSTRAP_SERVERS: kafka-1:19092,kafka-2:19092,kafka-3:19092
+        SCHEMA_REGISTRY_URL: http://schema-registry:8081
+    command: ["--stream", "edits"]
+
+  producer-baseline:
+    <<: *producer
+    command: ["--stream", "baseline"]
+
+  live-job:
+    profiles: ["stream"]
+    build: {context: ., target: spark}
+    image: ${EDITGUARD_SPARK_IMAGE:-ghcr.io/kaarthikmohaan/editguard-spark:local}
+    restart: unless-stopped
+    mem_limit: 4608m  # driver heap 3g plus JVM and Python overhead
+    stop_grace_period: 90s  # finish the current micro-batch
+    depends_on:
+      schema-registry: {condition: service_healthy}
+    ports: ["127.0.0.1:4040:4040"]  # Spark UI
+    working_dir: ${PWD}
+    volumes:
+      - ./data:${PWD}/data
+      - ${HOME}/.aws:/home/app/.aws
+    environment:
+      <<: *stream-env
+      AWS_PROFILE: ${AWS_PROFILE:-editguard-dev}
+      DATA_BUCKET: ${DATA_BUCKET:-}
+    command: ["--env", "${EDITGUARD_ENV:-dev}"]
+
 volumes:
   airflow-logs:
   kafka-1:
