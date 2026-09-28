@@ -6,6 +6,7 @@ All notable changes are listed here. Format: [Keep a Changelog](https://keepacha
 
 ### Added
 - M3 (contracts, CI/CD, environments):
+  - Nightly workflow (`.github/workflows/nightly.yml`): `dbt build` and the format check on real Athena in staging through GitHub OIDC (no stored keys); the staging CI role can read the salt secret; the account ID and salt are masked in the logs.
   - Tests outside the `e2e` layer run with the AWS login hidden (`tests/conftest.py`), as in CI; the dbt compile tests no longer open a warehouse connection (`--no-populate-cache`, `--no-introspect`).
   - Test layers as pytest markers (`unit`, `dbt`, `spark`, `integration`, `e2e`); `make test` runs unit only, `make test-all` every local layer, `make coverage` a coverage report (pytest-cov).
   - CI on GitHub Actions (`.github/workflows/ci.yml`), on every pull request and push to `main`: ruff and gitleaks, unit tests with coverage, `make contract-check`, dbt on DuckDB, the Spark and integration tests, and pip-audit; Dependabot for uv and Actions updates weekly; CI badge in the README.

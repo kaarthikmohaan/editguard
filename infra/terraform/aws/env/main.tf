@@ -173,6 +173,21 @@ data "aws_iam_policy_document" "ci_access" {
     ]
     resources = [aws_athena_workgroup.this.arn]
   }
+
+  # The nightly dbt build hashes usernames with the salt (design: one salt, never rotated).
+  # Staging only: prod dbt runs from the laptop, so the prod CI role never needs it.
+  dynamic "statement" {
+    for_each = var.env == "staging" ? [1] : []
+    content {
+      sid       = "ReadUsernameSalt"
+      actions   = ["secretsmanager:GetSecretValue"]
+      resources = [data.aws_secretsmanager_secret.salt.arn]
+    }
+  }
+}
+
+data "aws_secretsmanager_secret" "salt" {
+  name = "editguard/username-salt"
 }
 
 resource "aws_iam_role_policy" "ci_access" {

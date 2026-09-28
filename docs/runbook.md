@@ -124,6 +124,10 @@ Contract changes must stay BACKWARD compatible (CI checks). Kafka then holds mes
 2. Restart the producers: they register the new version on their first message.
 3. The live job fails once on the first message with the unknown schema ID (`no writer schema for Schema Registry id …`), the `until` loop restarts it, and it reads the new list.
 
+### Nightly Athena check (staging)
+
+`.github/workflows/nightly.yml` runs `make dbt ENV=staging CMD=build` and `make format-check ENV=staging` at 02:00 IST, in the `staging` GitHub environment. Start it by hand from the Actions tab (**nightly → Run workflow**). AWS access is a one-hour OIDC session for `editguard-ci-staging`; its ARN is the `AWS_ROLE_ARN` secret of the `staging` environment (from `terraform output ci_role_arn`). If a run fails with `AccessDenied`, add exactly the named action to `ci_access` in `infra/terraform/aws/env/main.tf` and `make infra ENV=staging`.
+
 ### AWS access
 
 Log in with IAM Identity Center (no long-lived keys): `aws sso login --profile editguard-dev`. Sessions last 8 hours. Check with `aws sts get-caller-identity --profile editguard-dev`; the ARN must contain `AWSReservedSSO_AdministratorAccess`.

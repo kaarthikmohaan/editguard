@@ -1,0 +1,56 @@
+# Nightly: the dbt models and data tests on real Athena in staging, then the Iceberg format check
+# (docs/testing.md, section 1). AWS access through GitHub OIDC: a one-hour role session for the
+# `staging` environment only (docs/security.md, section 4). No stored AWS keys.
+name: nightly
+
+on:
+  schedule:
+    - cron: "30 20 * * *"  # 20:30 UTC = 02:00 IST
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write  # lets the job ask GitHub for an OIDC token to exchange for AWS credentials
+
+concurrency:
+  group: nightly-staging
+  cancel-in-progress: false  # never stop a dbt MERGE halfway
+
+env:
+  UV_FROZEN: "1"
+  CONTACT_EMAIL: ci@example.com
+  AWS_REGION: ap-south-1
+
+jobs:
+  athena:
+    name: dbt on Athena (staging)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    environment: staging  # the role trusts only this environment
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: astral-sh/setup-uv@v10.2.0
+      - run: uv sync --all-groups
+      - uses: aws-actions/configure-aws-credentials@v6.3.0
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          role-session-name: editguard-nightly-${{ github.run_id }}
+          aws-region: ${{ env.AWS_REGION }}
+          mask-aws-account-id: true  # before any later step prints it
+      - name: hide the account ID and salt from the public logs
+        run: |
+          account=$(aws sts get-caller-identity --query Account --output text)
+          salt=$(aws secretsmanager get-secret-value --secret-id editguard/username-salt \
+            --query SecretString --output text)
+          echo "::add-mask::$account"
+          echo "::add-mask::$salt"
+      - name: named profile for the Makefile, dbt and boto3
+        # The same `make` targets as on the laptop, which select a profile by name.
+        run: |
+          aws configure set aws_access_key_id "$AWS_ACCESS_KEY_ID" --profile editguard-ci
+          aws configure set aws_secret_access_key "$AWS_SECRET_ACCESS_KEY" --profile editguard-ci
+          aws configure set aws_session_token "$AWS_SESSION_TOKEN" --profile editguard-ci
+          aws configure set region "$AWS_REGION" --profile editguard-ci
+          echo "AWS_PROFILE=editguard-ci" >> "$GITHUB_ENV"
+      - run: make dbt ENV=staging CMD=build
+      - run: make format-check ENV=staging
