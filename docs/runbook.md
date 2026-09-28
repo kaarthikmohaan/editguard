@@ -126,7 +126,7 @@ Contract changes must stay BACKWARD compatible (CI checks). Kafka then holds mes
 
 ### Nightly Athena check (staging)
 
-`.github/workflows/nightly.yml` runs `make dbt ENV=staging CMD=build` and `make format-check ENV=staging` at 02:00 IST, in the `staging` GitHub environment. Start it by hand from the Actions tab (**nightly → Run workflow**). AWS access is a one-hour OIDC session for `editguard-ci-staging`; its ARN is the `AWS_ROLE_ARN` secret of the `staging` environment (from `terraform output ci_role_arn`). If a run fails with `AccessDenied`, add exactly the named action to `ci_access` in `infra/terraform/aws/env/main.tf` and `make infra ENV=staging`.
+`.github/workflows/nightly.yml` runs `make dbt ENV=staging CMD=build` and `make format-check ENV=staging` at 02:00 IST, in the `staging` GitHub environment. Start it by hand from the Actions tab (**nightly → Run workflow**). AWS access is a one-hour OIDC session for `editguard-ci-staging`; its ARN is the `AWS_ROLE_ARN` secret of the `staging` environment (from `terraform output ci_role_arn`). If a run fails with `AccessDenied`, add exactly the named action to `ci_access` (test first with `aws iam simulate-principal-policy --policy-source-arn <role ARN> --action-names <action>`) in `infra/terraform/aws/env/main.tf` and `make infra ENV=staging`. If login fails with `Not authorized to perform sts:AssumeRoleWithWebIdentity`, compare the subject GitHub sent (CloudTrail event `AssumeRoleWithWebIdentity`, field `userIdentity.userName`) with `github_repo` there; GitHub's subject carries the owner and repo IDs (`repo:<owner>@<id>/<repo>@<id>:environment:<env>`).
 
 ### AWS access
 
