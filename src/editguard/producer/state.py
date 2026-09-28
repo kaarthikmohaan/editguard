@@ -63,7 +63,9 @@ class BookmarkWriter:
         self._stream = stream
         self._interval_s = interval_s
         self._last_saved: str | None = None
-        self._last_time = 0.0
+        # Never saved yet. Not 0.0: time.monotonic() counts from boot, so on a just-started
+        # machine "0.0" would look like a save moments ago and the first save would be skipped.
+        self._last_time = float("-inf")
 
     def maybe_save(self, event_id: str | None, force: bool = False) -> bool:
         """Save event_id if it changed and the interval has passed (or force). True if saved."""

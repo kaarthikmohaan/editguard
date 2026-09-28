@@ -32,6 +32,8 @@ All notable changes are listed here. Format: [Keep a Changelog](https://keepacha
   - The live job runs a third query, `baseline`, landing Kafka `baseline.raw.v1` in the new table `bronze.baseline_scores` (ADR 0011). `--queries` runs a subset.
 
 ### Fixed
+- M3:
+  - The producer's bookmark writer skipped its first save on a machine booted less than one interval ago (it compared against monotonic time 0, i.e. boot); found by CI on a fresh runner.
 - M2:
   - Bronze Iceberg metadata no longer grows without bound: old `metadata.json` files are deleted after each commit (newest 100 kept), and the bronze query commits every 60 s instead of 10 s (scoring stays at 10 s, so flag latency is unchanged).
 
