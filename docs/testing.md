@@ -9,7 +9,7 @@ Every requirement in [design.md](design.md#2-requirements) maps to at least one 
 | Unit | `uv run pytest -m unit` | Parsing, features, labels, scoring, gap detector | Every commit (pre-commit) and PR |
 | dbt compile | `uv run pytest -m dbt` | dbt project compiles offline; schema names, hashing, maintenance lists | Every PR |
 | Spark | `uv run pytest -m spark` | Avro decoding, metadata cleanup, snapshot visibility on a local Spark | Every PR (needs Java 17) |
-| Integration | `uv run pytest -m integration` | Producer → Kafka → Spark → local Iceberg (testcontainers) | Every PR |
+| Integration | `uv run pytest -m integration` | The 1,000-event fixture from a fake EventStreams (real HTTP, SSE) → the real producer, stopped halfway and resumed → Kafka and Schema Registry (testcontainers) → the live job's bronze and scoring code on Spark → local Iceberg; flags must equal offline scoring | Every PR |
 | Contract | `datacontract lint` / `datacontract test` | Contract validity, schema compatibility | Every PR |
 | dbt (DuckDB) | `make dbt-ci` (`pytest -m dbt`) | All dbt models and data tests on DuckDB from the 1,000-event fixture, twice (incremental), with replay gaps and duplicates | Every PR |
 | dbt (Athena) | `uv run pytest -m e2e` | Same models on real Athena, staging | Nightly |
@@ -28,7 +28,7 @@ Markers are registered in `pyproject.toml` (`--strict-markers`). A test is `unit
 
 | Requirement | Test IDs |
 | --- | --- |
-| FR1 Ingest with no gaps | T-U-GAP-01..03, T-I-RESUME-01, T-CH-PRODUCER |
+| FR1 Ingest with no gaps | T-U-GAP-01..03, T-I-RESUME-01 (`tests/test_pipeline_integration.py`), T-CH-PRODUCER |
 | FR2 Score and flag within seconds | T-U-SCORE-01..05, T-E2E-01, T-PERF-STREAM |
 | FR3 Explain flags | T-EVAL-LLM-EN, T-EVAL-LLM-IN, T-U-ENRICH-01..04 |
 | FR4 Queue and detail API | T-API-01..08, T-E2E-01, T-PERF-API |

@@ -7,6 +7,7 @@ All notable changes are listed here. Format: [Keep a Changelog](https://keepacha
 ### Added
 - M3 (contracts, CI/CD, environments):
   - Test layers as pytest markers (`unit`, `dbt`, `spark`, `integration`, `e2e`); `make test` runs unit only, `make test-all` every local layer, `make coverage` a coverage report (pytest-cov).
+  - Pipeline integration test (T-I-RESUME-01): the fixture from a fake EventStreams through the real producer (stopped halfway, resumed from its bookmark), Kafka and Schema Registry in Docker (testcontainers), and the live job's bronze and scoring code on Spark; checks no gaps, bronze exactly once, and flags equal to offline scoring.
   - dbt on DuckDB (`make dbt-ci`, target `ci`, dbt-duckdb 1.11): every model and data test runs from the 1,000-event fixture with no AWS; Athena-only SQL moved to dispatch macros (`user_hash`, `yyyymmdd`, `iso_day_of_week`, `days_between`), giving identical hashes on both engines.
   - 1,000-event test fixture (`tests/fixtures/page_change_1k.jsonl.gz`, `baseline_1k.jsonl.gz`) and its reproducible recorder, with usernames replaced.
   - T-SKEW-01: the live scoring path (Kafka bytes → Spark → `scoring_rows`) and the offline path produce identical features and flags (Spark test); T-LEAK-01: `compute_features` reads only `POINT_IN_TIME_FIELDS`; T-DBT-FORMAT-V2: `make format-check ENV=…` checks every Iceberg table's format version through Glue.

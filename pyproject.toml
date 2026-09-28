@@ -29,6 +29,7 @@ dev = [
     "pytest-cov>=7",
     "pyyaml>=6",
     "ruff>=0.16.9",
+    "testcontainers[kafka]>=4.15",
 ]
 transform = [
     "dbt-athena==1.11.1",
@@ -55,7 +56,7 @@ markers = [
     "unit: fast, no network, no JVM (the default layer)",
     "dbt: compiles the dbt project in-process (offline, a few seconds each)",
     "spark: starts a local Spark session (needs Java 17 and the connector jars)",
-    "integration: needs local services (Kafka, Schema Registry)",
+    "integration: starts Kafka and Schema Registry in Docker (testcontainers)",
     "e2e: needs AWS (staging)",
 ]
 addopts = "--strict-markers"

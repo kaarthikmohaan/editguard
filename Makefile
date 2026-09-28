@@ -27,7 +27,7 @@ batch-down: ## Stop Airflow only
 test: ## Unit tests only (fast; no JVM, no network)
 	uv run pytest -m unit
 
-test-all: ## Every local test layer: unit, dbt (offline compile) and Spark (needs Java 17)
+test-all: ## Every local layer: unit, dbt, Spark (Java 17) and integration (Docker)
 	uv run pytest
 
 dbt-ci: ## Every dbt model and data test on DuckDB from the 1,000-event fixture (no AWS)
