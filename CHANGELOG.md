@@ -4,6 +4,11 @@ All notable changes are listed here. Format: [Keep a Changelog](https://keepacha
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-09-28
+
+### Fixed
+- The release smoke test failed on GitHub's Linux runner after passing: its cleanup could not delete files the containers (uid 1000) wrote, and that error became the script's exit code. The files are now removed as the containers' user, and the script always exits with the smoke test's result. 0.2.0 therefore stopped before its prod approval and was never deployed; 0.2.1 is the M3 release.
+
 ## [0.2.0] - 2026-09-28 (M3)
 
 Contracts, CI/CD and environments on top of M2's batch layer: every change is tested in CI, staging is checked nightly on real Athena, and releases reach prod only through a staging smoke test and a human approval.
