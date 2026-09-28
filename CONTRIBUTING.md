@@ -19,7 +19,7 @@ Python is pinned to 3.12 in `.python-version`. Add packages with `uv add <pkg>` 
 
 ## Workflow
 
-- Trunk-based: branch from `main`, keep branches under a day, open a pull request, and merge with **Create a merge commit** when CI is green. Merge commits keep each Conventional Commit on `main` (the changelog and journals cite their hashes), and a local `main` then updates with `git pull --ff-only`.
+- Trunk-based: branch from `main`, keep branches under a day, open a pull request, and merge with **Create a merge commit** when CI is green. Merge commits keep each reviewed Conventional Commit on `main` with its original hash, so `git log` and `git bisect` show the real steps, and a local `main` then updates with `git pull --ff-only`.
 - `main` is protected by a ruleset: no direct pushes, force pushes or deletion; the 7 CI checks must pass and review conversations must be resolved before merging. Tags are not affected.
 - CI (`.github/workflows/ci.yml`) runs on every pull request and push to `main`: lint and gitleaks, unit tests with coverage, `make contract-check`, dbt on DuckDB, the Spark and integration tests, and pip-audit. No AWS is involved. Dependabot opens weekly update pull requests (`.github/dependabot.yml`).
 - One GitHub issue per task; link it in the PR.
