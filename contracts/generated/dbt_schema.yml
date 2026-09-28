@@ -61,10 +61,9 @@ models:
   - name: rev_parent_id
     data_type: NUMBER
   - name: rev_size
-    data_tests:
-    - not_null
     data_type: NUMBER
-    description: Size of the new revision in bytes.
+    description: Size of the new revision in bytes. Null when the upstream event has
+      none (deletes of suppressed revisions); contract 1.2.0.
   - name: prior_rev_size
     data_type: NUMBER
     description: prior_state.revision.rev_size. Null for page creations.

@@ -20,7 +20,7 @@ Edit events as received, one row per upstream event.
 | page_change_kind | string | yes |  | One of edit, create, move, delete, undelete, visibility_change. |
 | rev_id | bigint | yes |  | Revision ID. Unique within a wiki, not per page. |
 | rev_parent_id | bigint | no |  |  |
-| rev_size | bigint | yes |  | Size of the new revision in bytes. |
+| rev_size | bigint | no |  | Size of the new revision in bytes. Null when the upstream event has none (deletes of suppressed revisions); contract 1.2.0. |
 | prior_rev_size | bigint | no |  | prior_state.revision.rev_size. Null for page creations. |
 | is_minor_edit | boolean | yes |  |  |
 | comment | string | no |  | Edit summary. Hidden when is_comment_visible is false. |

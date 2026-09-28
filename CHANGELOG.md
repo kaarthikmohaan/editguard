@@ -7,6 +7,7 @@ All notable changes are listed here. Format: [Keep a Changelog](https://keepacha
 ### Added
 - M3 (contracts, CI/CD, environments):
   - Test layers as pytest markers (`unit`, `dbt`, `spark`, `integration`, `e2e`); `make test` runs unit only, `make test-all` every local layer, `make coverage` a coverage report (pytest-cov).
+  - `editguard.tools.dlq_replay` (`make dlq-replay`): re-sends dead-lettered edits that now pass the parser and contract through the replay lane; `--dry-run` touches nothing.
   - `make contract` regenerates `contracts/generated/` and the data dictionary's contract tables from `contracts/edits.odcs.yaml` (datacontract-cli 1.2.2 via uvx); `make contract-check` lints the contract and fails if anything generated is stale. The generated files now carry ADR 0010's `event_time` wording.
 - M2 (stream and batch together; milestone tag `m2-stream-and-batch`):
   - dbt project for the Athena batch layer (`transform/`, `make dbt ENV=… CMD=…`).
@@ -18,6 +19,9 @@ All notable changes are listed here. Format: [Keep a Changelog](https://keepacha
   - Iceberg maintenance macros (`maintain_tables`): OPTIMIZE (today and yesterday by default) and VACUUM with 7-day snapshot retention for every incremental table.
 
 ### Changed
+- M3:
+  - Contract 1.2.0: `rev_size` is optional (null for deletes of suppressed revisions, which went to the DLQ with `KeyError: 'rev_size'`); BACKWARD compatible.
+  - The live and replay jobs decode each Kafka message with the writer schema its Schema Registry ID points to (fetched at start) and resolve it to the current contract, so messages from before and after a compatible contract change decode side by side; an unknown ID fails the query instead of misreading bytes.
 - M2:
   - The live job runs a third query, `baseline`, landing Kafka `baseline.raw.v1` in the new table `bronze.baseline_scores` (ADR 0011). `--queries` runs a subset.
 

@@ -22,8 +22,8 @@ class Edits(pydantic.BaseModel):
     rev_id: int
     'Revision ID. Unique within a wiki, not per page.'
     rev_parent_id: typing.Optional[int]
-    rev_size: int
-    'Size of the new revision in bytes.'
+    rev_size: typing.Optional[int]
+    'Size of the new revision in bytes. Null when the upstream event has none (deletes of suppressed revisions); contract 1.2.0.'
     prior_rev_size: typing.Optional[int]
     'prior_state.revision.rev_size. Null for page creations.'
     is_minor_edit: bool

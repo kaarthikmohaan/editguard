@@ -127,3 +127,56 @@ def test_decode_baseline_takes_time_from_kafka_timestamp() -> None:
         assert (row["upstream_partition"], row["upstream_offset"]) == (2, 1234)
     finally:
         spark.stop()
+
+
+def test_decode_edits_reads_each_message_with_its_writer_schema() -> None:
+    """Contract 1.2.0 made rev_size optional. Kafka then holds messages written with both
+    schema versions; each must be read with its own schema, and an unknown one must fail."""
+    from pyspark.sql import SparkSession
+
+    from editguard.streaming.bronze import decode_edits
+    from editguard.streaming.live_job import PACKAGES
+
+    new_json = json.loads((ROOT / "contracts/generated/edits.avsc").read_text())
+    old_json = json.loads(json.dumps(new_json))
+    for field in old_json["fields"]:
+        if field["name"] == "rev_size":
+            field["type"] = "long"  # contract 1.1.0: required
+    old_schema, new_schema = parse_schema(old_json), parse_schema(new_json)
+
+    def framed(record: dict[str, Any], schema: Any, schema_id: int) -> bytearray:
+        buf = io.BytesIO()
+        schemaless_writer(buf, schema, record)
+        return bytearray(b"\x00" + struct.pack(">I", schema_id) + buf.getvalue())
+
+    raw = json.loads((ROOT / "tests/fixtures/page_change_edit.json").read_text())
+    old_record = to_edit_event(raw)
+    new_record = {**to_edit_event(raw), "event_id": "new-1", "rev_size": None}
+
+    spark = (
+        SparkSession.builder.master("local[1]")
+        .config("spark.jars.packages", PACKAGES)
+        .config("spark.sql.session.timeZone", "UTC")
+        .getOrCreate()
+    )
+    try:
+        writers = {1: json.dumps(old_json), 2: json.dumps(new_json)}
+        df = spark.createDataFrame(
+            [(framed(old_record, old_schema, 1),), (framed(new_record, new_schema, 2),)],
+            "value binary",
+        )
+        rows = {
+            r["event_id"]: r
+            for r in decode_edits(df, writers).select("event_id", "rev_size", "wiki_id").collect()
+        }
+        assert rows[old_record["event_id"]]["rev_size"] == old_record["rev_size"]
+        assert rows["new-1"]["rev_size"] is None
+        assert {r["wiki_id"] for r in rows.values()} == {
+            old_record["wiki_id"]
+        }  # later fields intact
+
+        unknown = spark.createDataFrame([(framed(new_record, new_schema, 3),)], "value binary")
+        with pytest.raises(Exception, match="no writer schema for Schema Registry id 3"):
+            decode_edits(unknown, writers).collect()
+    finally:
+        spark.stop()

@@ -47,7 +47,8 @@ def account_age_days(event_time: datetime, registration: datetime | None) -> flo
 def compute_features(record: dict[str, Any]) -> Features:
     """Features for one bronze/EditEvent record (a dict with the contract's fields)."""
     prior = record["prior_rev_size"]
-    delta = None if prior is None else record["rev_size"] - prior
+    size = record["rev_size"]
+    delta = None if prior is None or size is None else size - prior
     relative = None if delta is None or not prior else delta / prior
     comment = record["comment"]
     return Features(

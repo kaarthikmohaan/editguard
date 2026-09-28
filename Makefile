@@ -1,5 +1,5 @@
 .DEFAULT_GOAL := help
-.PHONY: help setup up down test test-all coverage lint contract contract-check infra batch batch-down dbt replay replay-bronze replay-check
+.PHONY: help setup up down test test-all coverage lint contract contract-check dlq-replay infra batch batch-down dbt replay replay-bronze replay-check
 
 AWS_PROFILE ?= editguard-dev
 export AWS_PROFILE
@@ -64,6 +64,9 @@ dbt: ## Run dbt on Athena for one environment: make dbt ENV=staging|prod CMD="de
 replay: ## Replay a past window into edits.replay.v1: make replay SINCE=<iso> UNTIL=<iso>
 	@test -n "$(SINCE)" -a -n "$(UNTIL)" || { echo 'usage: make replay SINCE=2026-09-26T10:00:00Z UNTIL=2026-09-26T11:00:00Z'; exit 1; }
 	uv run python -m editguard.producer.replay --since $(SINCE) --until $(UNTIL)
+
+dlq-replay: ## Re-send dead-lettered edits that now parse to edits.replay.v1 (then replay-bronze)
+	uv run python -m editguard.tools.dlq_replay $(ARGS)
 
 replay-bronze: ## Append everything replayed so far to bronze.edits_replay: make replay-bronze ENV=…
 	@test -n "$(ENV)" || { echo 'usage: make replay-bronze ENV=dev|staging|prod'; exit 1; }

@@ -28,6 +28,7 @@ from editguard.streaming.bronze import (
     decode_baseline,
     decode_edits,
     metadata_cleanup_sql,
+    registered_schemas,
 )
 from editguard.streaming.catalogs import Catalog, catalog_for
 from editguard.streaming.flags import TIMESTAMP_FIELDS, FlagPublisher, flag_records, utc_rows
@@ -82,11 +83,16 @@ def read_topic(
 
 
 def read_edits(
-    spark: SparkSession, settings: Settings, starting: str, max_offsets: int
+    spark: SparkSession,
+    settings: Settings,
+    starting: str,
+    max_offsets: int,
+    writer_schemas: dict[int, str],
 ) -> DataFrame:
     """edits.raw.v1 decoded and deduplicated on event_id within the watermark."""
+    kafka = read_topic(spark, settings, "edits.raw.v1", starting, max_offsets)
     return (
-        decode_edits(read_topic(spark, settings, "edits.raw.v1", starting, max_offsets))
+        decode_edits(kafka, writer_schemas)
         .withWatermark("event_time", WATERMARK)
         .dropDuplicatesWithinWatermark(["event_id"])
     )
@@ -128,13 +134,18 @@ def main() -> None:
     spark.sparkContext.setLogLevel("WARN")
     bronze_trigger = f"{args.bronze_trigger_seconds} seconds"
     queries = []
+    # Every schema version producers have registered (contract changes stay BACKWARD
+    # compatible). A version registered after start fails the query; the restart loop
+    # brings the job back with the new list.
+    writers = registered_schemas(settings.schema_registry_url, "edits.raw.v1-value")
+    log.info("writer_schemas", subject="edits.raw.v1-value", ids=sorted(writers))
 
     # Query 1: bronze. Reads Kafka from the beginning so bronze holds the full history.
     if "bronze" in wanted:
         spark.sql(BRONZE_DDL.format(table=table))
         spark.sql(metadata_cleanup_sql(table))
         queries.append(
-            read_edits(spark, settings, "earliest", args.max_offsets)
+            read_edits(spark, settings, "earliest", args.max_offsets, writers)
             .writeStream.queryName("bronze")
             .format("iceberg")
             .outputMode("append")
@@ -172,7 +183,7 @@ def main() -> None:
 
     if "scoring" in wanted:
         queries.append(
-            read_edits(spark, settings, "latest", args.max_offsets)
+            read_edits(spark, settings, "latest", args.max_offsets, writers)
             .writeStream.queryName("scoring")
             .foreachBatch(score_batch)
             .trigger(processingTime=f"{args.scoring_trigger_seconds} seconds")
