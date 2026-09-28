@@ -173,6 +173,18 @@ data "aws_iam_policy_document" "ci_access" {
     ]
     resources = [aws_athena_workgroup.this.arn]
   }
+
+  # dbt hashes usernames with the salt (design: one salt, never rotated), so CI must read it.
+  # Read-only, and only this one secret.
+  statement {
+    sid       = "ReadUsernameSalt"
+    actions   = ["secretsmanager:GetSecretValue"]
+    resources = [data.aws_secretsmanager_secret.salt.arn]
+  }
+}
+
+data "aws_secretsmanager_secret" "salt" {
+  name = "editguard/username-salt"
 }
 
 resource "aws_iam_role_policy" "ci_access" {

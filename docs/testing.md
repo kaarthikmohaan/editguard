@@ -12,7 +12,7 @@ Every requirement in [design.md](design.md#2-requirements) maps to at least one 
 | Integration | `uv run pytest -m integration` | The 1,000-event fixture from a fake EventStreams (real HTTP, SSE) → the real producer, stopped halfway and resumed → Kafka and Schema Registry (testcontainers) → the live job's bronze and scoring code on Spark → local Iceberg; flags must equal offline scoring | Every PR |
 | Contract | `datacontract lint` / `datacontract test` | Contract validity, schema compatibility | Every PR |
 | dbt (DuckDB) | `make dbt-ci` (`pytest -m dbt`) | All dbt models and data tests on DuckDB from the 1,000-event fixture, twice (incremental), with replay gaps and duplicates | Every PR |
-| dbt (Athena) | `uv run pytest -m e2e` | Same models on real Athena, staging | Nightly |
+| dbt (Athena) | `make dbt ENV=staging CMD=build`, `make format-check ENV=staging` (`.github/workflows/nightly.yml`) | Same models and data tests on real Athena, staging; every Iceberg table format v2 | Nightly, 02:00 IST, and on demand |
 | End-to-end | `make e2e` | 1,000-event fixture through the whole stack to `GET /v1/flags` | Every PR touching pipeline code; release smoke test |
 | Performance | `make perf-stream`, `make perf-api` | 10x replay burst; locust on the API | Before each release |
 | Security | pip-audit, gitleaks, trivy, ruff `S` | Dependencies, secrets, images, Terraform, code | Every PR; Dependabot weekly |
