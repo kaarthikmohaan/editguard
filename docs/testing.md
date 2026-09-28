@@ -1,6 +1,6 @@
 # Test strategy
 
-Every requirement in [design.md](design.md#2-requirements) maps to at least one automated test. The author writes and runs all tests; CI runs them on every pull request and nightly.
+Every requirement in [design.md](design.md#2-requirements) maps to at least one automated test. The author writes and runs all tests; CI (`.github/workflows/ci.yml`) runs the unit, dbt, contract, Spark, integration and dependency checks on every pull request, and the Athena layer runs nightly.
 
 ## 1. Layers
 

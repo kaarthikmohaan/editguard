@@ -1,5 +1,7 @@
 # EditGuard
 
+[![ci](https://github.com/kaarthikmohaan/editguard/actions/workflows/ci.yml/badge.svg)](https://github.com/kaarthikmohaan/editguard/actions/workflows/ci.yml)
+
 Real-time triage of Wikipedia edits that anti-vandal bots miss, measured against Wikimedia's own revert-risk model.
 
 > Demo video: `<link after M8>` · Results: [docs/results.md](docs/results.md) · Design: [docs/design.md](docs/design.md)

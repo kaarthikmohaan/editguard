@@ -20,6 +20,7 @@ Python is pinned to 3.12 in `.python-version`. Add packages with `uv add <pkg>` 
 ## Workflow
 
 - Trunk-based: branch from `main`, keep branches under a day, open a pull request, squash merge when CI is green.
+- CI (`.github/workflows/ci.yml`) runs on every pull request and push to `main`: lint and gitleaks, unit tests with coverage, `make contract-check`, dbt on DuckDB, the Spark and integration tests, and pip-audit. No AWS is involved. Dependabot opens weekly update pull requests (`.github/dependabot.yml`).
 - One GitHub issue per task; link it in the PR.
 - Commits follow Conventional Commits: `feat:`, `fix:`, `test:`, `docs:`, `refactor:`, `chore:`.
 - Any change to a design decision needs a new ADR in `docs/adr/`.
