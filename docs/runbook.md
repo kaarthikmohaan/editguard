@@ -151,6 +151,15 @@ Terraform state lives in the versioned bucket `editguard-tfstate-<account_id>-ap
 | staging | Push a tag `vX.Y.Z` (it must equal `v` + the version in `pyproject.toml`). `.github/workflows/release.yml` builds the arm64 images, pushes them to GHCR with a GitHub release listing their digests, fails if staging differs from Terraform (ADR 0012: apply with `make infra ENV=staging` on the laptop), then runs the smoke test `scripts/smoke/replay_smoke.sh`: the release's images replay a 10-minute window into staging, dbt builds it and the replay-count check must pass; then the format check |
 | prod | Approve the `prod` environment in GitHub Actions (the release's last job waits for it); then `make deploy VERSION=vX.Y.Z` on the laptop |
 
+`make deploy VERSION=vX.Y.Z`, run from that tag (`git fetch --tags && git switch --detach vX.Y.Z`):
+
+1. `editguard.tools.deploy` refuses unless HEAD is the tag with no local changes and GitHub shows the release's `prod` job finished (it runs only after a reviewer approves), then writes `.deploy.env` (gitignored): `EDITGUARD_ENV=prod` and both images pinned by digest from the GitHub release.
+2. `make infra ENV=prod` (review the plan; type `yes` only if it is expected).
+3. `make dbt ENV=prod CMD=build`.
+4. `make stream`: pulls the pinned images and restarts the producers and the live job on them; they resume from their bookmarks and checkpoints.
+
+The images must be pullable without a login: after the first release, set both GHCR packages (`editguard-producer`, `editguard-spark`) to public in GitHub (Packages → package settings → Change visibility). Delete `.deploy.env` to go back to local builds on dev.
+
 ## 3. Alerts
 
 | Alert | Threshold | Likely cause | Fix |

@@ -136,13 +136,13 @@ services:
   # by Docker after any exit (replaces the terminal tabs and `until` loops). The producers keep
   # their bookmarks in Kafka; the live job keeps its checkpoints in ./data, mounted at the same
   # path as on the host so dev's local Iceberg paths stay valid. EDITGUARD_ENV picks the live
-  # job's environment (dev unless set); EDITGUARD_VERSION picks the image tag (local builds
-  # unless set; `make deploy` sets a released version).
+  # job's environment (dev unless set). Images are local builds (`make images`) unless
+  # `make deploy` pinned a release's images by digest in .deploy.env.
   producer-edits:
     <<: &producer
       profiles: ["stream"]
       build: {context: ., target: producer}
-      image: ghcr.io/kaarthikmohaan/editguard-producer:${EDITGUARD_VERSION:-local}
+      image: ${EDITGUARD_PRODUCER_IMAGE:-ghcr.io/kaarthikmohaan/editguard-producer:local}
       restart: unless-stopped
       mem_limit: 256m
       stop_grace_period: 45s  # time to flush Kafka and save the bookmark
@@ -161,7 +161,7 @@ services:
   live-job:
     profiles: ["stream"]
     build: {context: ., target: spark}
-    image: ghcr.io/kaarthikmohaan/editguard-spark:${EDITGUARD_VERSION:-local}
+    image: ${EDITGUARD_SPARK_IMAGE:-ghcr.io/kaarthikmohaan/editguard-spark:local}
     restart: unless-stopped
     mem_limit: 4608m  # driver heap 3g plus JVM and Python overhead
     stop_grace_period: 90s  # finish the current micro-batch
