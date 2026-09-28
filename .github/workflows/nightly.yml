@@ -36,6 +36,7 @@ jobs:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           role-session-name: editguard-nightly-${{ github.run_id }}
           aws-region: ${{ env.AWS_REGION }}
+          mask-aws-account-id: true  # before any later step prints it
       - name: hide the account ID and salt from the public logs
         run: |
           account=$(aws sts get-caller-identity --query Account --output text)

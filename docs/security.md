@@ -44,7 +44,7 @@ Least privilege from Terraform:
 - `editguard-dev`: read/write `s3://<bucket>/dev/*`, Glue `dev_*`.
 - `editguard-ci-staging`: staging prefixes and databases; Athena workgroup `editguard-stg`; read-only on the salt secret (dbt hashes usernames). Assumable only from the `staging` GitHub environment.
 - `editguard-ci-prod`: prod prefixes; assumable only from the `prod` GitHub environment.
-- No role has `iam:*`. Outside the project bucket, CI roles can only read the salt secret (`secretsmanager:GetSecretValue` on that one secret); the nightly workflow masks it and the account ID in the public Actions logs.
+- No role has `iam:*`. Outside the project bucket, only `editguard-ci-staging` can read the salt secret (`secretsmanager:GetSecretValue` on that one secret); the nightly workflow masks it and the account ID in the public Actions logs.
 
 ## 5. Scanning
 
