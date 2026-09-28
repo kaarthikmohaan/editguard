@@ -4,6 +4,10 @@ All notable changes are listed here. Format: [Keep a Changelog](https://keepacha
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-09-28 (M3)
+
+Contracts, CI/CD and environments on top of M2's batch layer: every change is tested in CI, staging is checked nightly on real Athena, and releases reach prod only through a staging smoke test and a human approval.
+
 ### Added
 - M3 (contracts, CI/CD, environments):
   - `make deploy VERSION=vX.Y.Z` (`editguard.tools.deploy`): refuses unless the checkout is the tag and GitHub shows the release approved for prod; pins the release's images by digest in `.deploy.env`; then prod Terraform, prod dbt build and `make stream`. Compose images come from `.deploy.env` or local builds (`make images`).
@@ -37,6 +41,7 @@ All notable changes are listed here. Format: [Keep a Changelog](https://keepacha
 
 ### Fixed
 - M3:
+  - The staging CI role trusts GitHub's current OIDC subject (with owner and repository IDs) and has the permissions Athena and dbt-athena need (`s3:GetBucketLocation`, Glue table versions); found by the first nightly runs.
   - The producer's bookmark writer skipped its first save on a machine booted less than one interval ago (it compared against monotonic time 0, i.e. boot); found by CI on a fresh runner.
 - M2:
   - Bronze Iceberg metadata no longer grows without bound: old `metadata.json` files are deleted after each commit (newest 100 kept), and the bronze query commits every 60 s instead of 10 s (scoring stays at 10 s, so flag latency is unchanged).
@@ -46,6 +51,8 @@ All notable changes are listed here. Format: [Keep a Changelog](https://keepacha
 - Prod bronze still holds about 2 GB of `metadata.json` files written before the cleanup fix; the daily VACUUM removes them as they pass the 7-day retention (around 2026-10-04).
 - The live job and Airflow both need a valid SSO session; when it expires, they fail and retry until `aws sso login`, then catch up (Kafka keeps 7 days; dbt models are incremental).
 - A replay needs one of Wikimedia's 2 connections per IP, so the baseline producer is paused while `make replay` runs.
+- The release smoke test replays a window ending 3 hours ago: a replay stops only when every upstream partition is past the window, and the quiet `codfw` partition gets about one event an hour.
+- Infrastructure changes are applied from the laptop (`make infra`), not by CD (ADR 0012); a release fails its drift check until they are.
 - dbt inlines the username salt into Athena SQL, so it appears in Athena query history (45 days, account only) and in `transform/target/` (see `docs/security.md`).
 
 ## [0.1.0] - 2026-09-27 (MVP)
