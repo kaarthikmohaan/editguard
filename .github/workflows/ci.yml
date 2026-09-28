@@ -91,6 +91,23 @@ jobs:
       - run: uv sync --all-groups
       - run: uv run pytest -m "spark or integration"
 
+  images:
+    name: container images
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - name: build the producer and Spark images
+        run: |
+          docker build --target producer -t editguard-producer:ci .
+          docker build --target spark -t editguard-spark:ci .
+      - name: images can load their contract schemas and start
+        run: |
+          docker run --rm --entrypoint python editguard-producer:ci -c \
+            "from editguard.producer.streams import STREAMS; [s.schema_path.read_text() for s in STREAMS.values()]"
+          docker run --rm editguard-producer:ci --help
+          docker run --rm editguard-spark:ci --help
+
   dependencies:
     name: dependency audit
     runs-on: ubuntu-24.04

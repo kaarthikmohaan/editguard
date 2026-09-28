@@ -1,5 +1,5 @@
 .DEFAULT_GOAL := help
-.PHONY: help setup up down test test-all coverage dbt-ci lint contract contract-check dlq-replay format-check infra batch batch-down dbt replay replay-bronze replay-check
+.PHONY: help setup up down stream stream-down images test test-all coverage dbt-ci lint contract contract-check dlq-replay format-check infra batch batch-down dbt replay replay-bronze replay-check
 
 AWS_PROFILE ?= editguard-dev
 export AWS_PROFILE
@@ -17,6 +17,15 @@ up: ## Start local services and wait until healthy
 
 down: ## Stop local services, Airflow included (keeps data volumes)
 	docker compose --profile batch down
+
+stream: ## Start the producers and the Spark live job in Docker (EDITGUARD_ENV=dev unless set)
+	docker compose --profile stream up -d --build --wait producer-edits producer-baseline live-job
+
+stream-down: ## Stop the producers and the live job (they flush and save progress first)
+	docker compose --profile stream stop producer-edits producer-baseline live-job
+
+images: ## Build the producer and Spark images locally
+	docker compose --profile stream build producer-edits live-job
 
 batch: ## Start Airflow (hourly dbt build, daily maintenance); UI at http://localhost:8080
 	docker compose --profile batch up -d --build --wait airflow

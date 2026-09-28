@@ -6,6 +6,7 @@ All notable changes are listed here. Format: [Keep a Changelog](https://keepacha
 
 ### Added
 - M3 (contracts, CI/CD, environments):
+  - Container images (root `Dockerfile`): `producer` (no Java) and `spark` (Java 17, connector jars baked in so containers start offline); compose services `producer-edits`, `producer-baseline` and `live-job` under the `stream` profile with Docker restarts (`make stream`, `make stream-down`, `make images`); CI builds both images and checks they load the contract schemas; Dependabot watches the base images.
   - Nightly workflow (`.github/workflows/nightly.yml`): `dbt build` and the format check on real Athena in staging through GitHub OIDC (no stored keys); the staging CI role can read the salt secret; the account ID and salt are masked in the logs.
   - Tests outside the `e2e` layer run with the AWS login hidden (`tests/conftest.py`), as in CI; the dbt compile tests no longer open a warehouse connection (`--no-populate-cache`, `--no-introspect`).
   - Test layers as pytest markers (`unit`, `dbt`, `spark`, `integration`, `e2e`); `make test` runs unit only, `make test-all` every local layer, `make coverage` a coverage report (pytest-cov).
