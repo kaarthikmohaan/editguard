@@ -3,7 +3,7 @@
 #   spark     live and replay Spark jobs; Java 17 and the connector jars baked in
 # Build: make images. Released images are pushed to GHCR by the release workflow (M3 step 9b).
 
-FROM ghcr.io/astral-sh/uv:0.12.1 AS uv
+FROM ghcr.io/astral-sh/uv:0.12.19 AS uv
 
 FROM python:3.12-slim-bookworm AS base
 COPY --from=uv /uv /usr/local/bin/uv
