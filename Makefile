@@ -1,5 +1,5 @@
 .DEFAULT_GOAL := help
-.PHONY: help setup up down test lint infra batch batch-down dbt replay replay-bronze replay-check
+.PHONY: help setup up down test test-all coverage lint infra batch batch-down dbt replay replay-bronze replay-check
 
 AWS_PROFILE ?= editguard-dev
 export AWS_PROFILE
@@ -24,8 +24,14 @@ batch: ## Start Airflow (hourly dbt build, daily maintenance); UI at http://loca
 batch-down: ## Stop Airflow only
 	docker compose --profile batch stop airflow
 
-test: ## Run unit tests
+test: ## Unit tests only (fast; no JVM, no network)
+	uv run pytest -m unit
+
+test-all: ## Every local test layer: unit, dbt (offline compile) and Spark (needs Java 17)
 	uv run pytest
+
+coverage: ## Unit tests with a line and branch coverage report
+	uv run pytest -m unit --cov --cov-report=term-missing:skip-covered
 
 lint: ## ruff, format check, gitleaks on full history
 	uv run ruff check .

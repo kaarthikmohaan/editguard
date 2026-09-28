@@ -26,6 +26,7 @@ build-backend = "uv_build"
 dev = [
     "pre-commit>=4.6.2",
     "pytest>=9.1.1",
+    "pytest-cov>=7",
     "ruff>=0.16.9",
 ]
 transform = [
@@ -46,3 +47,20 @@ select = ["E", "F", "I", "B", "UP", "S"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+# Test layers (docs/testing.md). Every test is `unit` unless its module sets another layer
+# (tests/conftest.py). `make test` runs unit only; `make test-all` runs every local layer.
+markers = [
+    "unit: fast, no network, no JVM (the default layer)",
+    "dbt: compiles the dbt project in-process (offline, a few seconds each)",
+    "spark: starts a local Spark session (needs Java 17 and the connector jars)",
+    "integration: needs local services (Kafka, Schema Registry)",
+    "e2e: needs AWS (staging)",
+]
+addopts = "--strict-markers"
+
+[tool.coverage.run]
+source = ["src/editguard"]
+branch = true
+
+[tool.coverage.report]
+skip_empty = true

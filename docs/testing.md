@@ -7,6 +7,8 @@ Every requirement in [design.md](design.md#2-requirements) maps to at least one 
 | Layer | Command | Covers | Runs |
 | --- | --- | --- | --- |
 | Unit | `uv run pytest -m unit` | Parsing, features, labels, scoring, gap detector | Every commit (pre-commit) and PR |
+| dbt compile | `uv run pytest -m dbt` | dbt project compiles offline; schema names, hashing, maintenance lists | Every PR |
+| Spark | `uv run pytest -m spark` | Avro decoding, metadata cleanup, snapshot visibility on a local Spark | Every PR (needs Java 17) |
 | Integration | `uv run pytest -m integration` | Producer → Kafka → Spark → local Iceberg (testcontainers) | Every PR |
 | Contract | `datacontract lint` / `datacontract test` | Contract validity, schema compatibility | Every PR |
 | dbt (DuckDB) | `dbt build --target ci` | All dbt tests on fixtures | Every PR |
@@ -19,6 +21,8 @@ Every requirement in [design.md](design.md#2-requirements) maps to at least one 
 | UAT | Scripted session | Triage flow usable by others | Before v1.0.0 |
 
 Coverage target: 80% for `features`, `producer` and label logic.
+
+Markers are registered in `pyproject.toml` (`--strict-markers`). A test is `unit` unless its module sets another layer (`tests/conftest.py`); Spark tests skip themselves when Java is missing. `make test` runs unit only (well under a second), `make test-all` every local layer, `make coverage` the unit layer with a line and branch report.
 
 ## 2. Traceability matrix
 

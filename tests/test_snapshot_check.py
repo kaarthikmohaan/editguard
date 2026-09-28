@@ -1,13 +1,8 @@
-import os
-import shutil
 from pathlib import Path
 
 import pytest
 
-pytestmark = pytest.mark.skipif(
-    shutil.which("java") is None or os.environ.get("EDITGUARD_SPARK_TESTS") != "1",
-    reason="Spark test: set EDITGUARD_SPARK_TESTS=1 (needs Java 17 and the Iceberg jar)",
-)
+pytestmark = pytest.mark.spark
 
 
 def test_current_snapshot_id_reads_latest_commit(tmp_path: Path) -> None:

@@ -1,7 +1,5 @@
 import io
 import json
-import os
-import shutil
 import struct
 from datetime import UTC, datetime
 from pathlib import Path
@@ -12,10 +10,7 @@ from fastavro import parse_schema, schemaless_writer
 
 from editguard.producer.parse import to_edit_event
 
-pytestmark = pytest.mark.skipif(
-    shutil.which("java") is None or os.environ.get("EDITGUARD_SPARK_TESTS") != "1",
-    reason="Spark test: set EDITGUARD_SPARK_TESTS=1 (needs Java 17 and the connector jars)",
-)
+pytestmark = pytest.mark.spark
 
 ROOT = Path(__file__).parents[1]
 SCHEMA = parse_schema(json.loads((ROOT / "contracts/generated/edits.avsc").read_text()))
