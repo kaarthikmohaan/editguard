@@ -15,6 +15,7 @@ import signal
 import time
 from datetime import UTC, datetime
 from types import FrameType
+from typing import Any
 
 from pyspark.sql import DataFrame, SparkSession
 from pyspark.sql import functions as F
@@ -98,6 +99,22 @@ def read_edits(
     )
 
 
+def scoring_rows(batch: DataFrame) -> list[dict[str, Any]]:
+    """A micro-batch as the Python records features.py scores (T-SKEW-01 tests this path).
+
+    Timestamps leave Spark as UTC strings: collecting them as datetimes would shift them to the
+    machine's local zone (IST here) and change account ages.
+    """
+    columns = [
+        F.date_format(name, "yyyy-MM-dd'T'HH:mm:ss.SSSX").alias(name)
+        if name in TIMESTAMP_FIELDS
+        else F.col(name)
+        for name in batch.columns
+        if name != "raw_json"
+    ]
+    return utc_rows(row.asDict() for row in batch.select(*columns).collect())
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawTextHelpFormatter
@@ -160,14 +177,7 @@ def main() -> None:
     publisher = FlagPublisher(settings)
 
     def score_batch(batch: DataFrame, batch_id: int) -> None:
-        columns = [
-            F.date_format(name, "yyyy-MM-dd'T'HH:mm:ss.SSSX").alias(name)
-            if name in TIMESTAMP_FIELDS
-            else F.col(name)
-            for name in batch.columns
-            if name != "raw_json"
-        ]
-        rows = utc_rows(row.asDict() for row in batch.select(*columns).collect())
+        rows = scoring_rows(batch)
         scored_at = datetime.now(UTC)
         flags = flag_records(rows, scored_at)
         publisher.publish(flags)

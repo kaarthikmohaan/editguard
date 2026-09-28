@@ -7,6 +7,7 @@ All notable changes are listed here. Format: [Keep a Changelog](https://keepacha
 ### Added
 - M3 (contracts, CI/CD, environments):
   - Test layers as pytest markers (`unit`, `dbt`, `spark`, `integration`, `e2e`); `make test` runs unit only, `make test-all` every local layer, `make coverage` a coverage report (pytest-cov).
+  - T-SKEW-01: the live scoring path (Kafka bytes → Spark → `scoring_rows`) and the offline path produce identical features and flags (Spark test); T-LEAK-01: `compute_features` reads only `POINT_IN_TIME_FIELDS`; T-DBT-FORMAT-V2: `make format-check ENV=…` checks every Iceberg table's format version through Glue.
   - `editguard.tools.dlq_replay` (`make dlq-replay`): re-sends dead-lettered edits that now pass the parser and contract through the replay lane; `--dry-run` touches nothing.
   - `make contract` regenerates `contracts/generated/` and the data dictionary's contract tables from `contracts/edits.odcs.yaml` (datacontract-cli 1.2.2 via uvx); `make contract-check` lints the contract and fails if anything generated is stale. The generated files now carry ADR 0010's `event_time` wording.
 - M2 (stream and batch together; milestone tag `m2-stream-and-batch`):

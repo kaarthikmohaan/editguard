@@ -41,8 +41,8 @@ Markers are registered in `pyproject.toml` (`--strict-markers`). A test is `unit
 | NFR Security | T-SEC-DEPS, T-SEC-SECRETS, T-SEC-IMAGES, T-SEC-IAC |
 | NFR Privacy | T-U-HASH-01, T-DBT-NO-USERNAME-SILVER, T-LOG-NO-PII |
 | NFR Reliability | T-CH-PRODUCER, T-CH-SPARK, T-CH-BROKER, T-CH-LLM |
-| NFR Feature parity (live vs offline) | T-SKEW-01, T-LEAK-01 |
-| NFR Format v2 everywhere | T-DBT-FORMAT-V2 |
+| NFR Feature parity (live vs offline) | T-SKEW-01 (`tests/test_skew.py`, spark), T-LEAK-01 (`tests/test_leakage.py`) |
+| NFR Format v2 everywhere | T-DBT-FORMAT-V2 (`make format-check ENV=…`, reads each table's metadata through Glue) |
 | LLM safety | T-EVAL-INJECTION (20 cases) |
 
 ## 3. Edge cases (each has a named unit or integration test)

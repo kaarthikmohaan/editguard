@@ -1,5 +1,5 @@
 .DEFAULT_GOAL := help
-.PHONY: help setup up down test test-all coverage lint contract contract-check dlq-replay infra batch batch-down dbt replay replay-bronze replay-check
+.PHONY: help setup up down test test-all coverage lint contract contract-check dlq-replay format-check infra batch batch-down dbt replay replay-bronze replay-check
 
 AWS_PROFILE ?= editguard-dev
 export AWS_PROFILE
@@ -37,6 +37,10 @@ lint: ## ruff, format check, gitleaks on full history
 	uv run ruff check .
 	uv run ruff format --check .
 	gitleaks git --no-banner --redact
+
+format-check: ## Every Iceberg table in ENV is format v2 (ADR 0008): make format-check ENV=prod
+	@test -n "$(ENV)" || { echo 'usage: make format-check ENV=staging|prod'; exit 1; }
+	uv run --group transform python -m editguard.tools.format_check --env $(ENV)
 
 contract: ## Regenerate Avro, Pydantic, dbt schema and dictionary tables from the contract
 	scripts/contract/generate.sh

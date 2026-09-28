@@ -44,6 +44,25 @@ def account_age_days(event_time: datetime, registration: datetime | None) -> flo
     return max(0.0, (event_time - registration).total_seconds() / 86400)
 
 
+# The only record fields compute_features may read (T-LEAK-01 checks it). Each one is known at
+# the moment of the edit: it arrives with the event itself. Anything learned later (reverts of
+# this edit, the editor's later activity, labels) must never be added here.
+POINT_IN_TIME_FIELDS = frozenset(
+    {
+        "event_time",
+        "rev_size",
+        "prior_rev_size",
+        "comment",
+        "is_comment_visible",
+        "performer_is_temp",
+        "performer_registration_dt",
+        "performer_edit_count",
+        "performer_groups",
+        "revert_method",
+    }
+)
+
+
 def compute_features(record: dict[str, Any]) -> Features:
     """Features for one bronze/EditEvent record (a dict with the contract's fields)."""
     prior = record["prior_rev_size"]
