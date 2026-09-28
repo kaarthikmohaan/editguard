@@ -33,6 +33,7 @@ dev = [
 transform = [
     "dbt-athena==1.11.1",
     "dbt-core>=1.12.5",
+    "dbt-duckdb==1.11.0",
 ]
 
 [tool.ruff]

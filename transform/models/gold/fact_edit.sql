@@ -14,7 +14,7 @@
 select
     wiki_id,
     rev_id,
-    cast(date_format(event_time, '%Y%m%d') as integer) as date_key,
+    {{ yyyymmdd('event_time') }} as date_key,
     user_hash,
     event_time,
     page_id,

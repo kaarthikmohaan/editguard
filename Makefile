@@ -1,5 +1,5 @@
 .DEFAULT_GOAL := help
-.PHONY: help setup up down test test-all coverage lint contract contract-check dlq-replay format-check infra batch batch-down dbt replay replay-bronze replay-check
+.PHONY: help setup up down test test-all coverage dbt-ci lint contract contract-check dlq-replay format-check infra batch batch-down dbt replay replay-bronze replay-check
 
 AWS_PROFILE ?= editguard-dev
 export AWS_PROFILE
@@ -29,6 +29,11 @@ test: ## Unit tests only (fast; no JVM, no network)
 
 test-all: ## Every local test layer: unit, dbt (offline compile) and Spark (needs Java 17)
 	uv run pytest
+
+dbt-ci: ## Every dbt model and data test on DuckDB from the 1,000-event fixture (no AWS)
+	uv run --group transform python transform/ci/load_fixtures.py
+	cd transform && DBT_PROFILES_DIR=. USERNAME_SALT=ci-salt DATA_BUCKET=unused \
+	  uv run --group transform dbt build --target ci
 
 coverage: ## Unit tests with a line and branch coverage report
 	uv run pytest -m unit --cov --cov-report=term-missing:skip-covered

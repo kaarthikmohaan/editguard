@@ -11,7 +11,7 @@ Every requirement in [design.md](design.md#2-requirements) maps to at least one 
 | Spark | `uv run pytest -m spark` | Avro decoding, metadata cleanup, snapshot visibility on a local Spark | Every PR (needs Java 17) |
 | Integration | `uv run pytest -m integration` | Producer → Kafka → Spark → local Iceberg (testcontainers) | Every PR |
 | Contract | `datacontract lint` / `datacontract test` | Contract validity, schema compatibility | Every PR |
-| dbt (DuckDB) | `dbt build --target ci` | All dbt tests on fixtures | Every PR |
+| dbt (DuckDB) | `make dbt-ci` (`pytest -m dbt`) | All dbt models and data tests on DuckDB from the 1,000-event fixture, twice (incremental), with replay gaps and duplicates | Every PR |
 | dbt (Athena) | `uv run pytest -m e2e` | Same models on real Athena, staging | Nightly |
 | End-to-end | `make e2e` | 1,000-event fixture through the whole stack to `GET /v1/flags` | Every PR touching pipeline code; release smoke test |
 | Performance | `make perf-stream`, `make perf-api` | 10x replay burst; locust on the API | Before each release |
@@ -67,9 +67,9 @@ Markers are registered in `pyproject.toml` (`--strict-markers`). A test is `unit
 
 ## 4. Test data
 
-- `tests/fixtures/page_change_1k.jsonl`: 1,000 real events recorded on day 1, including reverts, temporary accounts, moves and deletes.
+- `tests/fixtures/page_change_1k.jsonl.gz`: 1,000 consecutive real events (26 Sep 2026 12:00 UTC), including reverts, temporary accounts, creations, moves and deletes, and `baseline_1k.jsonl.gz`, the Wikimedia scores recorded for them. Recorded from the local Kafka with `scripts/fixtures/record_fixture.py` (reproducible: same window, same bytes).
 - `tests/fixtures/edge/`: hand-built events for the edge cases above.
-- Fixtures contain public Wikipedia data only; usernames replaced with placeholders.
+- Fixtures contain public Wikipedia data only; every editor's username (and the owner in User and User talk page titles) is replaced with a placeholder such as `user-0001` or `~temp-0020`, also inside edit summaries.
 
 ## 5. UAT
 
