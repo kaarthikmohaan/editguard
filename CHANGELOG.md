@@ -6,6 +6,7 @@ All notable changes are listed here. Format: [Keep a Changelog](https://keepacha
 
 ### Added
 - M3 (contracts, CI/CD, environments):
+  - Release workflow (`.github/workflows/release.yml`) on tags `vX.Y.Z`: arm64 images to GHCR and a GitHub release with their digests; staging Terraform drift check (ADR 0012: CD plans, the laptop applies); smoke test with the release's images (`scripts/smoke/replay_smoke.sh`: EventStreams replay → throwaway Kafka → replay job → staging → dbt → replay-count check); format check; then a `prod` approval gate.
   - Container images (root `Dockerfile`): `producer` (no Java) and `spark` (Java 17, connector jars baked in so containers start offline); compose services `producer-edits`, `producer-baseline` and `live-job` under the `stream` profile with Docker restarts (`make stream`, `make stream-down`, `make images`); CI builds both images and checks they load the contract schemas; Dependabot watches the base images.
   - Nightly workflow (`.github/workflows/nightly.yml`): `dbt build` and the format check on real Athena in staging through GitHub OIDC (no stored keys); the staging CI role can read the salt secret; the account ID and salt are masked in the logs.
   - Tests outside the `e2e` layer run with the AWS login hidden (`tests/conftest.py`), as in CI; the dbt compile tests no longer open a warehouse connection (`--no-populate-cache`, `--no-introspect`).

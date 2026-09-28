@@ -148,8 +148,8 @@ Terraform state lives in the versioned bucket `editguard-tfstate-<account_id>-ap
 | Env | How |
 | --- | --- |
 | dev | `make up` from your branch |
-| staging | Push a tag `vX.Y.Z`; CD applies Terraform and dbt to staging, then runs the end-to-end smoke test |
-| prod | Approve the `prod` environment in GitHub Actions; then `make deploy VERSION=vX.Y.Z` on the laptop |
+| staging | Push a tag `vX.Y.Z` (it must equal `v` + the version in `pyproject.toml`). `.github/workflows/release.yml` builds the arm64 images, pushes them to GHCR with a GitHub release listing their digests, fails if staging differs from Terraform (ADR 0012: apply with `make infra ENV=staging` on the laptop), then runs the smoke test `scripts/smoke/replay_smoke.sh`: the release's images replay a 10-minute window into staging, dbt builds it and the replay-count check must pass; then the format check |
+| prod | Approve the `prod` environment in GitHub Actions (the release's last job waits for it); then `make deploy VERSION=vX.Y.Z` on the laptop |
 
 ## 3. Alerts
 
