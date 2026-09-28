@@ -1,5 +1,5 @@
 .DEFAULT_GOAL := help
-.PHONY: help setup up down test test-all coverage lint infra batch batch-down dbt replay replay-bronze replay-check
+.PHONY: help setup up down test test-all coverage lint contract contract-check infra batch batch-down dbt replay replay-bronze replay-check
 
 AWS_PROFILE ?= editguard-dev
 export AWS_PROFILE
@@ -37,6 +37,12 @@ lint: ## ruff, format check, gitleaks on full history
 	uv run ruff check .
 	uv run ruff format --check .
 	gitleaks git --no-banner --redact
+
+contract: ## Regenerate Avro, Pydantic, dbt schema and dictionary tables from the contract
+	scripts/contract/generate.sh
+
+contract-check: ## Contract is valid ODCS and every generated file is up to date (CI)
+	scripts/contract/check.sh
 
 infra: ## Terraform plan + apply for one environment: make infra ENV=staging|prod
 	@test -n "$(ENV)" || { echo "usage: make infra ENV=staging|prod"; exit 1; }

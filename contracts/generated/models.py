@@ -6,7 +6,7 @@ class Edits(pydantic.BaseModel):
     event_id: str
     'Upstream meta.id (UUID). Dedup key.'
     event_time: datetime.datetime
-    'revision.rev_dt, when the edit happened. Event time for watermarks.'
+    'Top-level dt, when the change happened (equals revision.rev_dt for edits, creations and moves; the delete time for deletes). Event time for watermarks. ADR 0010.'
     emitted_at: datetime.datetime
     'meta.dt, when Wikimedia emitted the event. Used for lag.'
     ingested_at: datetime.datetime

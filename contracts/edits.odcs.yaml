@@ -49,7 +49,7 @@ schema:
         logicalType: timestamp
         physicalType: timestamp
         required: true
-        description: >
+        description: >-
           Top-level dt, when the change happened (equals revision.rev_dt for edits,
           creations and moves; the delete time for deletes). Event time for watermarks. ADR 0010.
       - name: emitted_at

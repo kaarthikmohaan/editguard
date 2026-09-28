@@ -36,7 +36,7 @@ Python is pinned to 3.12 in `.python-version`. Add packages with `uv add <pkg>` 
 ## Contract changes
 
 1. Edit `contracts/edits.odcs.yaml` and bump its `version`.
-2. `make contract` regenerates Avro, Pydantic and dbt schema files and the data dictionary.
+2. `make contract` regenerates the Avro, Pydantic and dbt schema files in `contracts/generated/` and the contract tables in `docs/data-dictionary.md` (datacontract-cli, pinned, run through `uvx`). Commit them with the contract. `make contract-check` (run in CI) fails if any of them is stale.
 3. CI checks BACKWARD compatibility against Schema Registry; breaking changes need an ADR and a new topic version (`.v2`).
 
 ## Make targets
@@ -48,9 +48,9 @@ Python is pinned to 3.12 in `.python-version`. Add packages with `uv add <pkg>` 
 | `demo` | Replay a fixture and open the triage page |
 | `up` / `down` | Start / stop local services |
 | `stream` / `replay` / `batch` | Run streaming, replay, Airflow |
-| `test` / `e2e` / `perf-stream` / `perf-api` / `evals` | Test layers |
-| `lint` | ruff, gitleaks, datacontract lint |
-| `contract` / `docs` | Regenerate schemas and data dictionary |
+| `test` / `test-all` / `coverage` / `e2e` / `perf-stream` / `perf-api` / `evals` | Test layers (`test` is unit only) |
+| `lint` | ruff, gitleaks |
+| `contract` / `contract-check` | Regenerate schemas and dictionary tables / check they are current (with `datacontract lint`) |
 | `report` | Evaluation and cost reports |
 | `window-start` / `window-end` | Mark SLO run windows |
 | `purge` | Remove suppressed revisions from bronze |
