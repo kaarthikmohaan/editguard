@@ -37,9 +37,12 @@ variable "region" {
   default = "ap-south-1"
 }
 
+# GitHub's OIDC subject names the owner and repo with their numeric IDs
+# (repo:<owner>@<owner_id>/<repo>@<repo_id>:...). The IDs never change, so a deleted and
+# re-created repo with the same name cannot take over this role. They are public, not secrets.
 variable "github_repo" {
   type    = string
-  default = "kaarthikmohaan/editguard"
+  default = "kaarthikmohaan@158012573/editguard@1386935390"
 }
 
 variable "athena_scan_cutoff_bytes" {
@@ -135,13 +138,21 @@ resource "aws_iam_role" "ci" {
 data "aws_iam_policy_document" "ci_access" {
   statement {
     sid       = "ListOwnPrefix"
-    actions   = ["s3:ListBucket", "s3:GetBucketLocation"]
+    actions   = ["s3:ListBucket"]
     resources = [local.bucket_arn]
     condition {
       test     = "StringLike"
       variable = "s3:prefix"
       values   = ["${var.prefix}/*", "${local.results_key}*"]
     }
+  }
+
+  # Athena looks up the results bucket's region before each query. GetBucketLocation has no
+  # s3:prefix, so the condition above never matches it. It reveals only the region.
+  statement {
+    sid       = "AthenaResultsBucketRegion"
+    actions   = ["s3:GetBucketLocation"]
+    resources = [local.bucket_arn]
   }
 
   statement {
@@ -157,6 +168,8 @@ data "aws_iam_policy_document" "ci_access" {
       "glue:GetTable", "glue:GetTables", "glue:CreateTable", "glue:UpdateTable", "glue:DeleteTable",
       "glue:GetPartition", "glue:GetPartitions", "glue:BatchCreatePartition",
       "glue:BatchDeletePartition", "glue:BatchGetPartition",
+      # dbt-athena prunes old Glue table versions after each model
+      "glue:GetTableVersion", "glue:GetTableVersions", "glue:BatchDeleteTableVersion",
     ]
     resources = concat(
       ["arn:aws:glue:${var.region}:${local.account_id}:catalog"],
