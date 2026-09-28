@@ -2,22 +2,27 @@ from pathlib import Path
 
 import pytest
 
-dbt_main = pytest.importorskip(
-    "dbt.cli.main", reason="needs the transform group (uv sync --all-groups)"
-)
-
 # Jinja and dbt internals raise DeprecationWarnings we cannot fix here.
-pytestmark = pytest.mark.filterwarnings("ignore::DeprecationWarning")
+pytestmark = [pytest.mark.dbt, pytest.mark.filterwarnings("ignore::DeprecationWarning")]
 
 TRANSFORM = Path(__file__).parents[1] / "transform"
 
 
 def compile_inline(sql: str, target: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> str:
     """Compile a SQL snippet in the real project, offline (dbt compile needs no AWS for this)."""
+    # Imported here, not at module level: importing dbt takes seconds, and the unit layer
+    # still collects (imports) this module before deselecting it.
+    dbt_main = pytest.importorskip(
+        "dbt.cli.main", reason="needs the transform group (uv sync --all-groups)"
+    )
     monkeypatch.setenv("DATA_BUCKET", "example-bucket")
     monkeypatch.setenv("USERNAME_SALT", "test-salt")
     args = [
         "compile",
+        # No warehouse lookups: dbt-athena otherwise opens an AWS connection to cache existing
+        # tables, which works on a laptop with SSO and fails in CI (no AWS profile).
+        "--no-populate-cache",
+        "--no-introspect",
         "--inline",
         sql,
         "--target",

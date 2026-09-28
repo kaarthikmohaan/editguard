@@ -86,3 +86,8 @@ def test_new_account_alone_is_not_flagged_but_with_removal_it_is(record: dict[st
     assert not rule_score(compute_features(new)).flagged  # 2 points
     removal = {**new, "rev_size": 100, "prior_rev_size": 1000}
     assert rule_score(compute_features(removal)).flagged  # 2 + 3 = 5 points
+
+
+def test_byte_delta_is_unknown_when_rev_size_is_missing(record: dict[str, Any]) -> None:
+    missing = {**record, "rev_size": None, "prior_rev_size": 500}
+    assert compute_features(missing).byte_delta is None

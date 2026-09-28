@@ -43,7 +43,7 @@ def to_edit_event(event: dict[str, Any], ingested_at: datetime | None = None) ->
         "page_change_kind": event["page_change_kind"],
         "rev_id": rev["rev_id"],
         "rev_parent_id": rev.get("rev_parent_id"),
-        "rev_size": rev["rev_size"],
+        "rev_size": rev.get("rev_size"),  # absent for suppressed revisions (contract 1.2.0)
         "prior_rev_size": prior_rev.get("rev_size"),
         "is_minor_edit": rev["is_minor_edit"],
         "comment": rev.get("comment"),

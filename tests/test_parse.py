@@ -83,3 +83,13 @@ def test_delete_event_time_is_when_the_page_was_deleted(raw_edit: dict[str, Any]
     delete["revision"]["rev_dt"] = "2012-05-12T08:34:10Z"  # the page's last edit, years ago
     record = to_edit_event(delete)
     assert record["event_time"] == datetime(2026, 9, 26, 10, 0, 0, tzinfo=UTC)
+
+
+def test_suppressed_delete_without_rev_size_parses_to_null(raw_edit: dict[str, Any]) -> None:
+    """Contract 1.2.0: deletes of suppressed revisions have no rev_size; they used to go to
+    the dead letter queue with KeyError: 'rev_size'. The record must still match the contract."""
+    raw_edit["page_change_kind"] = "delete"
+    del raw_edit["revision"]["rev_size"]
+    record = to_edit_event(raw_edit)
+    assert record["rev_size"] is None
+    assert validate(record, EDIT_SCHEMA)

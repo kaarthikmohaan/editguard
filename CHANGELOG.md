@@ -5,6 +5,16 @@ All notable changes are listed here. Format: [Keep a Changelog](https://keepacha
 ## [Unreleased]
 
 ### Added
+- M3 (contracts, CI/CD, environments):
+  - Tests outside the `e2e` layer run with the AWS login hidden (`tests/conftest.py`), as in CI; the dbt compile tests no longer open a warehouse connection (`--no-populate-cache`, `--no-introspect`).
+  - Test layers as pytest markers (`unit`, `dbt`, `spark`, `integration`, `e2e`); `make test` runs unit only, `make test-all` every local layer, `make coverage` a coverage report (pytest-cov).
+  - CI on GitHub Actions (`.github/workflows/ci.yml`), on every pull request and push to `main`: ruff and gitleaks, unit tests with coverage, `make contract-check`, dbt on DuckDB, the Spark and integration tests, and pip-audit; Dependabot for uv and Actions updates weekly; CI badge in the README.
+  - Pipeline integration test (T-I-RESUME-01): the fixture from a fake EventStreams through the real producer (stopped halfway, resumed from its bookmark), Kafka and Schema Registry in Docker (testcontainers), and the live job's bronze and scoring code on Spark; checks no gaps, bronze exactly once, and flags equal to offline scoring.
+  - dbt on DuckDB (`make dbt-ci`, target `ci`, dbt-duckdb 1.11): every model and data test runs from the 1,000-event fixture with no AWS; Athena-only SQL moved to dispatch macros (`user_hash`, `yyyymmdd`, `iso_day_of_week`, `days_between`), giving identical hashes on both engines.
+  - 1,000-event test fixture (`tests/fixtures/page_change_1k.jsonl.gz`, `baseline_1k.jsonl.gz`) and its reproducible recorder, with usernames replaced.
+  - T-SKEW-01: the live scoring path (Kafka bytes → Spark → `scoring_rows`) and the offline path produce identical features and flags (Spark test); T-LEAK-01: `compute_features` reads only `POINT_IN_TIME_FIELDS`; T-DBT-FORMAT-V2: `make format-check ENV=…` checks every Iceberg table's format version through Glue.
+  - `editguard.tools.dlq_replay` (`make dlq-replay`): re-sends dead-lettered edits that now pass the parser and contract through the replay lane; `--dry-run` touches nothing.
+  - `make contract` regenerates `contracts/generated/` and the data dictionary's contract tables from `contracts/edits.odcs.yaml` (datacontract-cli 1.2.2 via uvx); `make contract-check` lints the contract and fails if anything generated is stale. The generated files now carry ADR 0010's `event_time` wording.
 - M2 (stream and batch together; milestone tag `m2-stream-and-batch`):
   - dbt project for the Athena batch layer (`transform/`, `make dbt ENV=… CMD=…`).
   - `silver.edits`: incremental MERGE on `event_id` from `bronze.edits`, article edits only, usernames replaced by a salted hash, `raw_json` dropped; tests for unique and not-null `event_id` and accepted values.
@@ -15,10 +25,15 @@ All notable changes are listed here. Format: [Keep a Changelog](https://keepacha
   - Iceberg maintenance macros (`maintain_tables`): OPTIMIZE (today and yesterday by default) and VACUUM with 7-day snapshot retention for every incremental table.
 
 ### Changed
+- M3:
+  - Contract 1.2.0: `rev_size` is optional (null for deletes of suppressed revisions, which went to the DLQ with `KeyError: 'rev_size'`); BACKWARD compatible.
+  - The live and replay jobs decode each Kafka message with the writer schema its Schema Registry ID points to (fetched at start) and resolve it to the current contract, so messages from before and after a compatible contract change decode side by side; an unknown ID fails the query instead of misreading bytes.
 - M2:
   - The live job runs a third query, `baseline`, landing Kafka `baseline.raw.v1` in the new table `bronze.baseline_scores` (ADR 0011). `--queries` runs a subset.
 
 ### Fixed
+- M3:
+  - The producer's bookmark writer skipped its first save on a machine booted less than one interval ago (it compared against monotonic time 0, i.e. boot); found by CI on a fresh runner.
 - M2:
   - Bronze Iceberg metadata no longer grows without bound: old `metadata.json` files are deleted after each commit (newest 100 kept), and the bronze query commits every 60 s instead of 10 s (scoring stays at 10 s, so flag latency is unchanged).
 

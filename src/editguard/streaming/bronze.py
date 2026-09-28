@@ -64,11 +64,44 @@ def change_time(raw_json: Column) -> Column:
     return F.to_timestamp(F.get_json_object(raw_json, "$.dt"))
 
 
-def decode_edits(kafka_df: DataFrame) -> DataFrame:
-    """Kafka rows (binary value) -> one row per edit with the contract's columns."""
+def schema_id(value: Column) -> Column:
+    """The 4-byte schema ID after the magic byte of a Confluent-framed message."""
+    return F.conv(F.hex(F.substring(value, 2, 4)), 16, 10).cast("int")
+
+
+def decode_edits(kafka_df: DataFrame, writer_schemas: dict[int, str] | None = None) -> DataFrame:
+    """Kafka rows (binary value) -> one row per edit with the contract's columns.
+
+    writer_schemas maps each Schema Registry ID to the schema a message was written with.
+    Every message is read with its own writer schema and resolved to the current contract
+    (EDITS_SCHEMA), so messages written before and after a compatible contract change decode
+    correctly side by side. An unknown ID fails the query rather than misreading bytes.
+    Without writer_schemas, every message is assumed to use the current contract (tests).
+    """
     body = F.expr(f"substring(value, {CONFLUENT_HEADER_BYTES + 1}, length(value))")
-    edits = kafka_df.select(from_avro(body, EDITS_SCHEMA).alias("e")).select("e.*")
+    if writer_schemas:
+        ids = schema_id(F.col("value"))
+        decoded = F.raise_error(
+            F.concat(F.lit("no writer schema for Schema Registry id "), ids.cast("string"))
+        )
+        options = {"avroSchema": EDITS_SCHEMA}
+        for sid, writer in sorted(writer_schemas.items()):
+            decoded = F.when(ids == sid, from_avro(body, writer, options)).otherwise(decoded)
+    else:
+        decoded = from_avro(body, EDITS_SCHEMA)
+    edits = kafka_df.select(decoded.alias("e")).select("e.*")
     return edits.withColumn("event_time", change_time(F.col("raw_json")))
+
+
+def registered_schemas(registry_url: str, subject: str) -> dict[int, str]:
+    """Every version registered for a subject, as {schema id: schema text}."""
+    from confluent_kafka.schema_registry import SchemaRegistryClient
+
+    client = SchemaRegistryClient({"url": registry_url})
+    return {
+        version.schema_id: version.schema.schema_str
+        for version in (client.get_version(subject, v) for v in client.get_versions(subject))
+    }
 
 
 def decode_baseline(kafka_df: DataFrame) -> DataFrame:

@@ -13,7 +13,12 @@ import os
 from editguard.common.config import get_settings
 from editguard.common.logs import configure_logging
 from editguard.producer.replay import REPLAY_TOPIC
-from editguard.streaming.bronze import BRONZE_DDL, decode_edits, metadata_cleanup_sql
+from editguard.streaming.bronze import (
+    BRONZE_DDL,
+    decode_edits,
+    metadata_cleanup_sql,
+    registered_schemas,
+)
 from editguard.streaming.catalogs import catalog_for
 from editguard.streaming.live_job import read_topic, spark_session
 
@@ -38,14 +43,18 @@ def main() -> None:
     spark.sql(BRONZE_DDL.format(table=table))
     spark.sql(metadata_cleanup_sql(table))
 
+    writers = registered_schemas(settings.schema_registry_url, f"{args.topic}-value")
+    log.info("writer_schemas", ids=sorted(writers))
+    # One checkpoint per topic, so a test topic never moves the real replay's position.
+    checkpoint = "replay_job" if args.topic == REPLAY_TOPIC else f"replay_job_{args.topic}"
     topic = read_topic(spark, settings, args.topic, "earliest", args.max_offsets)
     query = (
-        decode_edits(topic)
+        decode_edits(topic, writers)
         .writeStream.queryName("replay")
         .format("iceberg")
         .outputMode("append")
         .trigger(availableNow=True)
-        .option("checkpointLocation", str(catalog.checkpoint_root / "replay_job"))
+        .option("checkpointLocation", str(catalog.checkpoint_root / checkpoint))
         .option("fanout-enabled", "true")
         .toTable(table)
     )

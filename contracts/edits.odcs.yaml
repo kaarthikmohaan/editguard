@@ -4,7 +4,7 @@ apiVersion: v3.2.0
 kind: DataContract
 id: urn:datacontract:editguard:edits
 name: editguard-edits
-version: 1.1.0
+version: 1.2.0
 status: active
 description:
   purpose: >
@@ -49,7 +49,7 @@ schema:
         logicalType: timestamp
         physicalType: timestamp
         required: true
-        description: >
+        description: >-
           Top-level dt, when the change happened (equals revision.rev_dt for edits,
           creations and moves; the delete time for deletes). Event time for watermarks. ADR 0010.
       - name: emitted_at
@@ -104,8 +104,10 @@ schema:
       - name: rev_size
         logicalType: integer
         physicalType: bigint
-        required: true
-        description: Size of the new revision in bytes.
+        required: false
+        description: >-
+          Size of the new revision in bytes. Null when the upstream event has none (deletes
+          of suppressed revisions); contract 1.2.0.
       - name: prior_rev_size
         logicalType: integer
         physicalType: bigint

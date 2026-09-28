@@ -10,7 +10,7 @@
     },
     {
       "name": "event_time",
-      "doc": "revision.rev_dt, when the edit happened. Event time for watermarks.",
+      "doc": "Top-level dt, when the change happened (equals revision.rev_dt for edits, creations and moves; the delete time for deletes). Event time for watermarks. ADR 0010.",
       "type": {
         "type": "long",
         "logicalType": "timestamp-millis"
@@ -69,8 +69,11 @@
     },
     {
       "name": "rev_size",
-      "doc": "Size of the new revision in bytes.",
-      "type": "long"
+      "doc": "Size of the new revision in bytes. Null when the upstream event has none (deletes of suppressed revisions); contract 1.2.0.",
+      "type": [
+        "null",
+        "long"
+      ]
     },
     {
       "name": "prior_rev_size",

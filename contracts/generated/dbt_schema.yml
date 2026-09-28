@@ -17,7 +17,9 @@ models:
     data_tests:
     - not_null
     data_type: TIMESTAMP_TZ
-    description: revision.rev_dt, when the edit happened. Event time for watermarks.
+    description: Top-level dt, when the change happened (equals revision.rev_dt for
+      edits, creations and moves; the delete time for deletes). Event time for watermarks.
+      ADR 0010.
   - name: emitted_at
     data_tests:
     - not_null
@@ -59,10 +61,9 @@ models:
   - name: rev_parent_id
     data_type: NUMBER
   - name: rev_size
-    data_tests:
-    - not_null
     data_type: NUMBER
-    description: Size of the new revision in bytes.
+    description: Size of the new revision in bytes. Null when the upstream event has
+      none (deletes of suppressed revisions); contract 1.2.0.
   - name: prior_rev_size
     data_type: NUMBER
     description: prior_state.revision.rev_size. Null for page creations.
@@ -221,4 +222,3 @@ models:
     - not_null
     data_type: FLOAT
     description: Predicted probability the edit is reverted.
-

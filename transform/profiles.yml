@@ -25,3 +25,12 @@ editguard:
       s3_data_naming: schema_table
       aws_profile_name: "{{ env_var('AWS_PROFILE', 'editguard-dev') }}"
       threads: 2
+    # Local and CI: DuckDB built from the 1,000-event fixture (transform/ci/load_fixtures.py).
+    # No AWS. Same models and tests; dialect differences live in macros/cross_db.sql.
+    ci:
+      type: duckdb
+      path: "{{ env_var('DBT_DUCKDB_PATH', 'target/ci.duckdb') }}"
+      schema: ci_silver
+      threads: 1
+      settings:
+        TimeZone: UTC

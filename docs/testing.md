@@ -1,15 +1,17 @@
 # Test strategy
 
-Every requirement in [design.md](design.md#2-requirements) maps to at least one automated test. The author writes and runs all tests; CI runs them on every pull request and nightly.
+Every requirement in [design.md](design.md#2-requirements) maps to at least one automated test. The author writes and runs all tests; CI (`.github/workflows/ci.yml`) runs the unit, dbt, contract, Spark, integration and dependency checks on every pull request, and the Athena layer runs nightly.
 
 ## 1. Layers
 
 | Layer | Command | Covers | Runs |
 | --- | --- | --- | --- |
 | Unit | `uv run pytest -m unit` | Parsing, features, labels, scoring, gap detector | Every commit (pre-commit) and PR |
-| Integration | `uv run pytest -m integration` | Producer → Kafka → Spark → local Iceberg (testcontainers) | Every PR |
+| dbt compile | `uv run pytest -m dbt` | dbt project compiles offline; schema names, hashing, maintenance lists | Every PR |
+| Spark | `uv run pytest -m spark` | Avro decoding, metadata cleanup, snapshot visibility on a local Spark | Every PR (needs Java 17) |
+| Integration | `uv run pytest -m integration` | The 1,000-event fixture from a fake EventStreams (real HTTP, SSE) → the real producer, stopped halfway and resumed → Kafka and Schema Registry (testcontainers) → the live job's bronze and scoring code on Spark → local Iceberg; flags must equal offline scoring | Every PR |
 | Contract | `datacontract lint` / `datacontract test` | Contract validity, schema compatibility | Every PR |
-| dbt (DuckDB) | `dbt build --target ci` | All dbt tests on fixtures | Every PR |
+| dbt (DuckDB) | `make dbt-ci` (`pytest -m dbt`) | All dbt models and data tests on DuckDB from the 1,000-event fixture, twice (incremental), with replay gaps and duplicates | Every PR |
 | dbt (Athena) | `uv run pytest -m e2e` | Same models on real Athena, staging | Nightly |
 | End-to-end | `make e2e` | 1,000-event fixture through the whole stack to `GET /v1/flags` | Every PR touching pipeline code; release smoke test |
 | Performance | `make perf-stream`, `make perf-api` | 10x replay burst; locust on the API | Before each release |
@@ -20,11 +22,13 @@ Every requirement in [design.md](design.md#2-requirements) maps to at least one 
 
 Coverage target: 80% for `features`, `producer` and label logic.
 
+Markers are registered in `pyproject.toml` (`--strict-markers`). A test is `unit` unless its module sets another layer (`tests/conftest.py`); Spark tests skip themselves when Java is missing. `make test` runs unit only (well under a second), `make test-all` every local layer, `make coverage` the unit layer with a line and branch report.
+
 ## 2. Traceability matrix
 
 | Requirement | Test IDs |
 | --- | --- |
-| FR1 Ingest with no gaps | T-U-GAP-01..03, T-I-RESUME-01, T-CH-PRODUCER |
+| FR1 Ingest with no gaps | T-U-GAP-01..03, T-I-RESUME-01 (`tests/test_pipeline_integration.py`), T-CH-PRODUCER |
 | FR2 Score and flag within seconds | T-U-SCORE-01..05, T-E2E-01, T-PERF-STREAM |
 | FR3 Explain flags | T-EVAL-LLM-EN, T-EVAL-LLM-IN, T-U-ENRICH-01..04 |
 | FR4 Queue and detail API | T-API-01..08, T-E2E-01, T-PERF-API |
@@ -37,8 +41,8 @@ Coverage target: 80% for `features`, `producer` and label logic.
 | NFR Security | T-SEC-DEPS, T-SEC-SECRETS, T-SEC-IMAGES, T-SEC-IAC |
 | NFR Privacy | T-U-HASH-01, T-DBT-NO-USERNAME-SILVER, T-LOG-NO-PII |
 | NFR Reliability | T-CH-PRODUCER, T-CH-SPARK, T-CH-BROKER, T-CH-LLM |
-| NFR Feature parity (live vs offline) | T-SKEW-01, T-LEAK-01 |
-| NFR Format v2 everywhere | T-DBT-FORMAT-V2 |
+| NFR Feature parity (live vs offline) | T-SKEW-01 (`tests/test_skew.py`, spark), T-LEAK-01 (`tests/test_leakage.py`) |
+| NFR Format v2 everywhere | T-DBT-FORMAT-V2 (`make format-check ENV=…`, reads each table's metadata through Glue) |
 | LLM safety | T-EVAL-INJECTION (20 cases) |
 
 ## 3. Edge cases (each has a named unit or integration test)
@@ -63,9 +67,9 @@ Coverage target: 80% for `features`, `producer` and label logic.
 
 ## 4. Test data
 
-- `tests/fixtures/page_change_1k.jsonl`: 1,000 real events recorded on day 1, including reverts, temporary accounts, moves and deletes.
+- `tests/fixtures/page_change_1k.jsonl.gz`: 1,000 consecutive real events (26 Sep 2026 12:00 UTC), including reverts, temporary accounts, creations, moves and deletes, and `baseline_1k.jsonl.gz`, the Wikimedia scores recorded for them. Recorded from the local Kafka with `scripts/fixtures/record_fixture.py` (reproducible: same window, same bytes).
 - `tests/fixtures/edge/`: hand-built events for the edge cases above.
-- Fixtures contain public Wikipedia data only; usernames replaced with placeholders.
+- Fixtures contain public Wikipedia data only; every editor's username (and the owner in User and User talk page titles) is replaced with a placeholder such as `user-0001` or `~temp-0020`, also inside edit summaries.
 
 ## 5. UAT
 

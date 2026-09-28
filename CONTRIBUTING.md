@@ -20,6 +20,7 @@ Python is pinned to 3.12 in `.python-version`. Add packages with `uv add <pkg>` 
 ## Workflow
 
 - Trunk-based: branch from `main`, keep branches under a day, open a pull request, squash merge when CI is green.
+- CI (`.github/workflows/ci.yml`) runs on every pull request and push to `main`: lint and gitleaks, unit tests with coverage, `make contract-check`, dbt on DuckDB, the Spark and integration tests, and pip-audit. No AWS is involved. Dependabot opens weekly update pull requests (`.github/dependabot.yml`).
 - One GitHub issue per task; link it in the PR.
 - Commits follow Conventional Commits: `feat:`, `fix:`, `test:`, `docs:`, `refactor:`, `chore:`.
 - Any change to a design decision needs a new ADR in `docs/adr/`.
@@ -36,7 +37,7 @@ Python is pinned to 3.12 in `.python-version`. Add packages with `uv add <pkg>` 
 ## Contract changes
 
 1. Edit `contracts/edits.odcs.yaml` and bump its `version`.
-2. `make contract` regenerates Avro, Pydantic and dbt schema files and the data dictionary.
+2. `make contract` regenerates the Avro, Pydantic and dbt schema files in `contracts/generated/` and the contract tables in `docs/data-dictionary.md` (datacontract-cli, pinned, run through `uvx`). Commit them with the contract. `make contract-check` (run in CI) fails if any of them is stale.
 3. CI checks BACKWARD compatibility against Schema Registry; breaking changes need an ADR and a new topic version (`.v2`).
 
 ## Make targets
@@ -48,9 +49,9 @@ Python is pinned to 3.12 in `.python-version`. Add packages with `uv add <pkg>` 
 | `demo` | Replay a fixture and open the triage page |
 | `up` / `down` | Start / stop local services |
 | `stream` / `replay` / `batch` | Run streaming, replay, Airflow |
-| `test` / `e2e` / `perf-stream` / `perf-api` / `evals` | Test layers |
-| `lint` | ruff, gitleaks, datacontract lint |
-| `contract` / `docs` | Regenerate schemas and data dictionary |
+| `test` / `test-all` / `coverage` / `e2e` / `perf-stream` / `perf-api` / `evals` | Test layers (`test` is unit only) |
+| `lint` | ruff, gitleaks |
+| `contract` / `contract-check` | Regenerate schemas and dictionary tables / check they are current (with `datacontract lint`) |
 | `report` | Evaluation and cost reports |
 | `window-start` / `window-end` | Mark SLO run windows |
 | `purge` | Remove suppressed revisions from bronze |

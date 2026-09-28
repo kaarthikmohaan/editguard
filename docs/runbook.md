@@ -108,6 +108,22 @@ make dbt ENV=prod CMD="run-operation maintain_tables --args '{days: null}'"   # 
 
 OPTIMIZE compacts small files and is safe while the live job appends (ADR 0009). Athena bills it for the partitions it reads, so the daily run covers only today and yesterday; use the whole-table form after a replay into older days. VACUUM expires snapshots older than 7 days and then deletes files no snapshot refers to once they are older than 7 days. Time travel and `rollback_to_snapshot` therefore reach back 7 days.
 
+### Dead letter queue: fix, then replay
+
+Events that fail parsing or the contract go to `edits.dlq` (kept 30 days) with the reason in their headers. After fixing the cause (parser or contract, released):
+
+1. `make dlq-replay ARGS=--dry-run`: counts which dead-lettered events now pass (no send, no commit, no Schema Registry calls).
+2. `make dlq-replay`: sends them to `edits.replay.v1` (they are too old for the live watermark) and remembers where it stopped (consumer group `dlq-replay`), so a rerun sends only newer DLQ messages. Events that still fail stay in the DLQ and are counted by reason. The event IDs sent are in `data/replays/dlq-replay-<time>.json`.
+3. `make replay-bronze ENV=prod`, then `make dbt ENV=prod CMD="build"`.
+
+### Changing the contract on a running pipeline
+
+Contract changes must stay BACKWARD compatible (CI checks). Kafka then holds messages written with more than one schema version; the live and replay jobs read the list of versions from Schema Registry at start and decode each message with its own writer schema. Order on prod:
+
+1. Restart the live job (it reads the current version list).
+2. Restart the producers: they register the new version on their first message.
+3. The live job fails once on the first message with the unknown schema ID (`no writer schema for Schema Registry id …`), the `until` loop restarts it, and it reads the new list.
+
 ### AWS access
 
 Log in with IAM Identity Center (no long-lived keys): `aws sso login --profile editguard-dev`. Sessions last 8 hours. Check with `aws sts get-caller-identity --profile editguard-dev`; the ARN must contain `AWSReservedSSO_AdministratorAccess`.
