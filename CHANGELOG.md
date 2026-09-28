@@ -6,6 +6,7 @@ All notable changes are listed here. Format: [Keep a Changelog](https://keepacha
 
 ### Added
 - M3 (contracts, CI/CD, environments):
+  - Tests outside the `e2e` layer run with the AWS login hidden (`tests/conftest.py`), as in CI; the dbt compile tests no longer open a warehouse connection (`--no-populate-cache`, `--no-introspect`).
   - Test layers as pytest markers (`unit`, `dbt`, `spark`, `integration`, `e2e`); `make test` runs unit only, `make test-all` every local layer, `make coverage` a coverage report (pytest-cov).
   - CI on GitHub Actions (`.github/workflows/ci.yml`), on every pull request and push to `main`: ruff and gitleaks, unit tests with coverage, `make contract-check`, dbt on DuckDB, the Spark and integration tests, and pip-audit; Dependabot for uv and Actions updates weekly; CI badge in the README.
   - Pipeline integration test (T-I-RESUME-01): the fixture from a fake EventStreams through the real producer (stopped halfway, resumed from its bookmark), Kafka and Schema Registry in Docker (testcontainers), and the live job's bronze and scoring code on Spark; checks no gaps, bronze exactly once, and flags equal to offline scoring.

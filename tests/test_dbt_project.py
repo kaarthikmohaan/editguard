@@ -19,6 +19,10 @@ def compile_inline(sql: str, target: str, tmp_path: Path, monkeypatch: pytest.Mo
     monkeypatch.setenv("USERNAME_SALT", "test-salt")
     args = [
         "compile",
+        # No warehouse lookups: dbt-athena otherwise opens an AWS connection to cache existing
+        # tables, which works on a laptop with SSO and fails in CI (no AWS profile).
+        "--no-populate-cache",
+        "--no-introspect",
         "--inline",
         sql,
         "--target",
