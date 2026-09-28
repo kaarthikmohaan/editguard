@@ -20,7 +20,17 @@ spark_image=${2:?usage: replay_smoke.sh <producer image> <spark image>}
 smoke="docker compose -f infra/smoke/compose.yaml"
 work=$(mktemp -d)
 chmod 777 "$work"  # the images run as uid 1000
-trap '$smoke down -v --remove-orphans >/dev/null 2>&1; rm -rf "$work"' EXIT
+
+cleanup() {
+  local status=$?
+  $smoke down -v --remove-orphans >/dev/null 2>&1 || true
+  # The containers' files belong to uid 1000; on a Linux runner only that user can delete them.
+  docker run --rm -v "$work:/w" --entrypoint sh "$producer_image" -c 'rm -rf /w/*' \
+    >/dev/null 2>&1 || true
+  rm -rf "$work" 2>/dev/null || true
+  exit "$status"  # the smoke test's result, never the cleanup's
+}
+trap cleanup EXIT
 
 until_ts=$(python3 -c "from datetime import UTC, datetime, timedelta
 t = datetime.now(UTC) - timedelta(hours=3)
