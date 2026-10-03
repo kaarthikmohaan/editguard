@@ -99,7 +99,7 @@ It also reads the username-hashing salt from Secrets Manager for that command (s
 
 ### Airflow (the batch schedule)
 
-`make batch` builds and starts Airflow 3.3 (LocalExecutor, one container, metadata in the local Postgres database `airflow`); `make batch-down` stops it. UI: http://localhost:8080 (bound to 127.0.0.1, no login). Two DAGs in `dags/editguard_batch.py`, both with `catchup=False` and one run at a time:
+`make batch` builds and starts Airflow 3.3 (LocalExecutor, one container, metadata in the local Postgres database `airflow`); `make batch-down` stops it. Airflow's DAGs and dbt project come from `../editguard-release`, a git worktree at the deployed tag (`make release-tree VERSION=vX.Y.Z`; `make deploy` runs it), never from this working folder, so a branch you are working on cannot reach prod. To try a branch on staging, point that worktree at it (`git -C ../editguard-release switch --detach <branch>`) with `EDITGUARD_DBT_TARGET=staging`, and switch it back afterwards. UI: http://localhost:8080 (bound to 127.0.0.1, no login). Two DAGs in `dags/editguard_batch.py`, both with `catchup=False` and one run at a time:
 
 | DAG | Schedule (UTC) | Runs |
 | --- | --- | --- |
@@ -154,9 +154,10 @@ Terraform state lives in the versioned bucket `editguard-tfstate-<account_id>-ap
 `make deploy VERSION=vX.Y.Z`, run from that tag (`git fetch --tags && git switch --detach vX.Y.Z`):
 
 1. `editguard.tools.deploy` refuses unless HEAD is the tag with no local changes and GitHub shows the release's `prod` job finished (it runs only after a reviewer approves), then writes `.deploy.env` (gitignored): `EDITGUARD_ENV=prod` and both images pinned by digest from the GitHub release.
-2. `make infra ENV=prod` (review the plan; type `yes` only if it is expected).
-3. `make dbt ENV=prod CMD=build`.
-4. `make stream`: pulls the pinned images and restarts the producers and the live job on them; they resume from their bookmarks and checkpoints.
+2. `make release-tree VERSION=vX.Y.Z`: Airflow's checkout moves to the release.
+3. `make infra ENV=prod` (review the plan; type `yes` only if it is expected).
+4. `make dbt ENV=prod CMD=build`.
+5. `make stream`: pulls the pinned images and restarts the producers and the live job on them; they resume from their bookmarks and checkpoints.
 
 The images must be pullable without a login: after the first release, set both GHCR packages (`editguard-producer`, `editguard-spark`) to public in GitHub (Packages → package settings → Change visibility). Delete `.deploy.env` to go back to local builds on dev.
 
@@ -165,7 +166,7 @@ The images must be pullable without a login: after the first release, set both G
 | Alert | Threshold | Likely cause | Fix |
 | --- | --- | --- | --- |
 | NoEventsReceived | No events for 10 min | Stream down, network, producer crashed | Check `docker logs producer`; `curl -I https://stream.wikimedia.org/v2/ui/`; restart producer |
-| UpstreamOffsetGap | Any gap | Producer resumed from a wrong ID | Stop producer; inspect `_producer_state`; replay the gap window (section 1, Replay a past window); write a postmortem |
+| UpstreamOffsetGap | Any gap | Producer resumed from a wrong ID; or offsets EventStreams never serves (codfw between hourly canary events) | Re-read the window from EventStreams history (`since`): offsets it never serves are not a loss. Otherwise stop the producer, inspect `_producer_state`, replay the gap window (section 1, Replay a past window) and write a postmortem (see `docs/postmortems/2026-10-03-resume-skip.md`) |
 | ConsumerLagHigh | > 2 min for 10 min | Spark slow or stopped | Check Spark UI (localhost:4040); memory; restart job (resumes from checkpoint) |
 | StreamingQueryStopped | Query not active | Exception, `failOnDataLoss` | Read the exception; if data loss, record the gap and restart with a new checkpoint only after writing it down |
 | DLQRateHigh | > 0.5% for 15 min | Upstream schema change | Inspect `edits.dlq` headers; compare with the schema changelog; update the contract via PR |

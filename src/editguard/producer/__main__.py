@@ -21,6 +21,7 @@ from editguard.producer.gaps import GapDetector, decode_checkpoint, encode_check
 from editguard.producer.kafka_sink import (
     DeliveryCallback,
     RecordSink,
+    RegistryUnavailable,
     build_producer,
     build_serializer,
 )
@@ -55,6 +56,7 @@ class Producer:
         checkpoint = load_bookmark(self.settings, self.spec.name)
         resume_id, seed = decode_checkpoint(checkpoint)
         self.gaps = GapDetector(seed)
+        self.positions = dict(seed)  # last offset handled per upstream partition
         self.log.info("starting", resuming=resume_id is not None, seeded=bool(seed))
         attempt = 0
         while not self.stopping and not self.delivery_failed:
@@ -62,7 +64,7 @@ class Producer:
             try:
                 received_before = self.counts["received"]
                 self._consume(tracker, resume_id)
-            except (httpx.HTTPError, BufferError) as exc:
+            except (httpx.HTTPError, BufferError, RegistryUnavailable) as exc:
                 self.log.warning("stream_interrupted", error=type(exc).__name__, detail=str(exc))
             # Every exit from _consume lands here: wait for Kafka, then move the bookmark.
             self.kafka.flush(30)
@@ -87,9 +89,11 @@ class Producer:
             for event in iter_events(client, self.spec.name, resume_id):
                 meta = event.data["meta"]
                 self._check_gap(meta["topic"], meta["partition"], meta["offset"])
-                token = encode_checkpoint(
-                    event.id, meta["topic"], meta["partition"], meta["offset"]
-                )
+                key = (meta["topic"], meta["partition"])
+                self.positions[key] = max(meta["offset"], self.positions.get(key, -1))
+                # The bookmark only ever moves to an event whose predecessors are all done,
+                # so the positions as of that event are safe to resume from.
+                token = encode_checkpoint(event.id, self.positions)
                 seq = tracker.register(token)
                 self.counts["received"] += 1
                 if is_target(event.data):
