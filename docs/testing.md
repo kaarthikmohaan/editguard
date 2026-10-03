@@ -6,8 +6,8 @@ Every requirement in [design.md](design.md#2-requirements) maps to at least one 
 
 | Layer | Command | Covers | Runs |
 | --- | --- | --- | --- |
-| Unit | `uv run pytest -m unit` | Parsing, features, labels, scoring, gap detector | Every commit (pre-commit) and PR |
-| dbt compile | `uv run pytest -m dbt` | dbt project compiles offline; schema names, hashing, maintenance lists | Every PR |
+| Unit | `uv run pytest -m unit` | Parsing, features, scoring, gap detector | Every commit (pre-commit) and PR |
+| dbt compile | `uv run pytest -m dbt` | dbt project compiles offline; schema names, hashing, maintenance lists; label rules on hand-built revert cases | Every PR |
 | Spark | `uv run pytest -m spark` | Avro decoding, metadata cleanup, snapshot visibility on a local Spark | Every PR (needs Java 17) |
 | Integration | `uv run pytest -m integration` | The 1,000-event fixture from a fake EventStreams (real HTTP, SSE) → the real producer, stopped halfway and resumed → Kafka and Schema Registry (testcontainers) → the live job's bronze and scoring code on Spark → local Iceberg; flags must equal offline scoring | Every PR |
 | Contract | `datacontract lint` / `datacontract test` | Contract validity, schema compatibility | Every PR |
@@ -21,7 +21,7 @@ Every requirement in [design.md](design.md#2-requirements) maps to at least one 
 | Chaos | `make chaos-*` | Failure recovery | Before each release |
 | UAT | Scripted session | Triage flow usable by others | Before v1.0.0 |
 
-Coverage target: 80% for `features`, `producer` and label logic.
+Coverage target: 80% for `features` and `producer`. The label logic is SQL (one implementation, used everywhere) and is covered by the dbt-layer edge cases instead.
 
 Markers are registered in `pyproject.toml` (`--strict-markers`). A test is `unit` unless its module sets another layer (`tests/conftest.py`); Spark tests skip themselves when Java is missing. `make test` runs unit only (well under a second), `make test-all` every local layer, `make coverage` the unit layer with a line and branch report.
 
@@ -33,7 +33,7 @@ Markers are registered in `pyproject.toml` (`--strict-markers`). A test is `unit
 | FR2 Score and flag within seconds | T-U-SCORE-01..05, T-E2E-01, T-PERF-STREAM |
 | FR3 Explain flags | T-EVAL-LLM-EN, T-EVAL-LLM-IN, T-U-ENRICH-01..04 |
 | FR4 Queue and detail API | T-API-01..08, T-E2E-01, T-PERF-API |
-| FR5 Labels and reproducible report | T-U-LABEL-01..08, T-DBT-LABEL-PAGE, T-REPORT-REPRO |
+| FR5 Labels and reproducible report | T-DBT-LABEL-01..08 and T-U-EDGE-05..07 (`tests/test_labels.py`: hand-built revert cases in `tests/fixtures/edge/labels.jsonl` through dbt on DuckDB), T-DBT-LABEL-PAGE (`transform/tests/labels_revert_on_same_page.sql`), T-REPORT-REPRO |
 | FR6 Separate replay path | T-I-REPLAY-01, T-DBT-REPLAY-COUNT |
 | FR7 Hide and purge suppressed revisions | T-U-VIS-01, T-API-410, T-I-PURGE-01 |
 | NFR Correctness (no duplicates) | T-DBT-UNIQUE-EVENT, T-CH-SPARK |

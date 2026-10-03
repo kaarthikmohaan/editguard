@@ -118,12 +118,15 @@ Deduplicated union of `bronze.edits` and `bronze.edits_replay`, article-namespac
 | --- | --- | --- |
 | wiki_id | string | Wiki database name. |
 | rev_id | bigint | The labelled edit. |
-| label | string | `damaging`, `bot_caught`, `ok` or `label_unknown`. |
+| label | string | `damaging`, `bot_caught`, `ok` or `label_unknown` (younger than 48 hours, not final yet). Rules: design section 7 and ADR 0005; built by `transform/models/silver/labels.sql`. |
 | reverting_rev_id | bigint | Revert that covered this edit, if any. |
 | revert_method | string | rollback, undo or manual. |
 | reverter_is_bot | boolean | Whether the reverting account is a bot. |
 | minutes_to_revert | double | Time from edit to revert. |
 | label_final_at | timestamp | event_time + 48 h; label frozen after this. |
+| event_time | timestamp | The labelled edit's event time (partition key). |
+
+Edits from before recording started are not in `silver.edits`, so they have no label row. Only reverts within an edit's first 48 hours count, so a final label never changes; incremental runs skip edits whose label is final.
 
 ## silver.user_history_asof_hour
 

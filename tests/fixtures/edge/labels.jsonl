@@ -1,0 +1,21 @@
+{"case": "T-DBT-LABEL-01 reverted by another person", "rev_id": 1001, "page_id": 100, "minutes": 0, "user": "alice", "expect": "damaging", "reverting_rev_id": 1002, "minutes_to_revert": 30.0}
+{"case": "T-DBT-LABEL-08 the revert itself is not reverted", "rev_id": 1002, "page_id": 100, "minutes": 30, "user": "bob", "revert": ["undo", 1001, 1001], "expect": "ok"}
+{"case": "T-DBT-LABEL-02 bot revert within 5 minutes", "rev_id": 2001, "page_id": 200, "minutes": 0, "user": "carol", "expect": "bot_caught", "reverting_rev_id": 2002}
+{"case": "", "rev_id": 2002, "page_id": 200, "minutes": 2, "user": "AntiVandalBot", "bot": true, "revert": ["rollback", 2001, 2001]}
+{"case": "T-DBT-LABEL-03 bot revert after 5 minutes", "rev_id": 3001, "page_id": 300, "minutes": 0, "user": "dave", "expect": "damaging", "reverting_rev_id": 3002, "reverter_is_bot": true}
+{"case": "", "rev_id": 3002, "page_id": 300, "minutes": 20, "user": "AntiVandalBot", "bot": true, "revert": ["rollback", 3001, 3001]}
+{"case": "T-DBT-LABEL-04 never reverted", "rev_id": 4001, "page_id": 400, "minutes": 0, "user": "erin", "expect": "ok"}
+{"case": "T-DBT-LABEL-05 author reverts own edit", "rev_id": 5001, "page_id": 500, "minutes": 0, "user": "frank", "expect": "ok"}
+{"case": "", "rev_id": 5002, "page_id": 500, "minutes": 10, "user": "frank", "revert": ["undo", 5001, 5001]}
+{"case": "T-DBT-LABEL-06 revert after 48 hours", "rev_id": 6001, "page_id": 600, "minutes": 0, "user": "gina", "expect": "ok"}
+{"case": "", "rev_id": 6002, "page_id": 600, "minutes": 2940, "user": "hank", "revert": ["undo", 6001, 6001]}
+{"case": "T-DBT-LABEL-07 younger than 48 hours", "rev_id": 7001, "page_id": 700, "minutes": 1440, "user": "ivan", "expect": "label_unknown"}
+{"case": "T-U-EDGE-05 revert of a revert restores the edit", "rev_id": 9001, "page_id": 900, "minutes": 0, "user": "kate", "expect": "ok"}
+{"case": "T-U-EDGE-05 the undone revert is itself damaging", "rev_id": 9002, "page_id": 900, "minutes": 10, "user": "leo", "revert": ["undo", 9001, 9001], "expect": "damaging", "reverting_rev_id": 9003}
+{"case": "", "rev_id": 9003, "page_id": 900, "minutes": 20, "user": "mia", "revert": ["undo", 9002, 9002]}
+{"case": "T-U-EDGE-06 rollback of 3 consecutive edits (1)", "rev_id": 11001, "page_id": 1100, "minutes": 0, "user": "nick", "expect": "damaging", "reverting_rev_id": 11004}
+{"case": "T-U-EDGE-06 rollback of 3 consecutive edits (2)", "rev_id": 11002, "page_id": 1100, "minutes": 1, "user": "nick", "expect": "damaging", "reverting_rev_id": 11004}
+{"case": "T-U-EDGE-06 rollback of 3 consecutive edits (3)", "rev_id": 11003, "page_id": 1100, "minutes": 2, "user": "nick", "expect": "damaging", "reverting_rev_id": 11004}
+{"case": "", "rev_id": 11004, "page_id": 1100, "minutes": 6, "user": "olga", "revert": ["rollback", 11001, 11003]}
+{"case": "T-U-EDGE-07 revert on another page with an overlapping ID range", "rev_id": 12001, "page_id": 1200, "minutes": 0, "user": "pat", "expect": "ok"}
+{"case": "", "rev_id": 13002, "page_id": 1300, "minutes": 5, "user": "quinn", "revert": ["undo", 12000, 12001]}

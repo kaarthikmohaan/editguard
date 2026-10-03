@@ -21,3 +21,11 @@
 {% macro duckdb__days_between(start, end) -%}
     (select cast(unnest(generate_series(date '{{ start }}', date '{{ end }}', interval 1 day)) as date) as d) as t
 {%- endmacro %}
+
+{# The labels' clock: var('labels_as_of') (e.g. '2026-09-28 12:00:00', UTC) or now. #}
+{% macro labels_as_of() -%}
+    {%- if var('labels_as_of', none) -%}timestamp '{{ var("labels_as_of") }}'
+    {%- else -%}{{ return(adapter.dispatch('now_utc')()) }}{%- endif -%}
+{%- endmacro %}
+{% macro default__now_utc() -%}cast(current_timestamp as timestamp(6)){%- endmacro %}
+{% macro duckdb__now_utc() -%}current_timestamp{%- endmacro %}

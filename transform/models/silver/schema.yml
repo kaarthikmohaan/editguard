@@ -45,3 +45,20 @@ models:
         data_tests: [not_null]
       - name: probability_true
         data_tests: [not_null]
+
+  - name: labels
+    description: >
+      One label per article edit from later reverts on the same page (ADR 0005): damaging,
+      bot_caught, ok, or label_unknown while younger than 48 hours. Frozen at label_final_at.
+      See docs/data-dictionary.md.
+    columns:
+      - name: wiki_id
+        data_tests: [not_null]
+      - name: rev_id
+        data_tests: [not_null]
+      - name: label
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [damaging, bot_caught, ok, label_unknown]

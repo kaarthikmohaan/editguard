@@ -4,6 +4,10 @@ All notable changes are listed here. Format: [Keep a Changelog](https://keepacha
 
 ## [Unreleased]
 
+### Added
+- M4 (evaluation):
+  - `silver.labels` (ADR 0005): one label per article edit from later reverts on the same page by someone else, not themselves reverted, within 48 hours: `damaging`, `bot_caught` (bot revert within 5 minutes), `ok`, or `label_unknown` until final; final labels are frozen. Tested on hand-built cases (T-DBT-LABEL-01..08, T-U-EDGE-05..07) and by the same-page test (T-DBT-LABEL-PAGE).
+
 ## [0.2.1] - 2026-09-28
 
 ### Fixed
