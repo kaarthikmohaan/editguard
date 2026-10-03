@@ -49,8 +49,11 @@ def fixture_events() -> list[dict[str, Any]]:
 
 
 class FakeEventStreams:
-    """Serves events as EventStreams does: SSE, one id per event, resuming after Last-Event-ID.
-    Each response ends after the available events; the producer reconnects for more."""
+    """Serves events as EventStreams does: SSE, one id per event, resuming from Last-Event-ID.
+    An id is a list of (topic, partition, offset) assignments, and EventStreams starts each
+    assigned partition at that offset (measured on the real service, 2026-10-03), so each
+    event's id points at the next offset. Each response ends after the available events;
+    the producer reconnects for more."""
 
     def __init__(self, events: list[dict[str, Any]], pause_after: int) -> None:
         self.events = events
@@ -64,7 +67,7 @@ class FakeEventStreams:
                     {
                         "topic": e["meta"]["topic"],
                         "partition": e["meta"]["partition"],
-                        "offset": e["meta"]["offset"],
+                        "offset": e["meta"]["offset"] + 1,
                     }
                 ]
             )
@@ -80,14 +83,17 @@ class FakeEventStreams:
             def do_GET(self) -> None:  # noqa: N802 - http.server API
                 fake.connections += 1
                 last = self.headers.get("Last-Event-ID")
-                start = fake.ids.index(last) + 1 if last in fake.ids else 0
+                starts = {
+                    (a["topic"], a["partition"]): a["offset"] for a in json.loads(last or "[]")
+                }
                 self.send_response(200)
                 self.send_header("Content-Type", "text/event-stream")
                 self.end_headers()
                 end = len(fake.events) if fake.gate.is_set() else fake.pause_after
-                for event_id, event in zip(
-                    fake.ids[start:end], fake.events[start:end], strict=True
-                ):
+                for event_id, event in zip(fake.ids[:end], fake.events[:end], strict=True):
+                    meta = event["meta"]
+                    if meta["offset"] < starts.get((meta["topic"], meta["partition"]), 0):
+                        continue  # before the resume point of its partition
                     body = f"event: message\nid: {event_id}\ndata: {json.dumps(event)}\n\n"
                     self.wfile.write(body.encode())
                 self.wfile.flush()  # then close: the producer reconnects and gets nothing new

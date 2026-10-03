@@ -100,6 +100,9 @@ services:
   # Batch layer scheduler (design: Airflow 3.3, LocalExecutor, its own container). Starts only
   # with `make batch` (profile "batch"). Runs dbt against Athena with your SSO login (~/.aws,
   # read-write so the SDK can refresh its token) and EDITGUARD_DBT_TARGET (staging unless set).
+  # Its code (DAGs, dbt project) is ../editguard-release, a git worktree at the deployed tag
+  # (`make release-tree`, run by `make deploy`), never this working folder: branches you are
+  # working on cannot reach prod.
   airflow:
     profiles: ["batch"]
     build: infra/airflow
@@ -111,7 +114,7 @@ services:
     ports: ["127.0.0.1:8080:8080"]
     entrypoint: /opt/editguard/infra/airflow/start.sh
     volumes:
-      - .:/opt/editguard:ro
+      - ../editguard-release:/opt/editguard:ro
       - ${HOME}/.aws:/home/airflow/.aws
       - airflow-logs:/opt/airflow/logs
     environment:

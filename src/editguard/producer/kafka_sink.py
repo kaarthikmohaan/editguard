@@ -4,15 +4,22 @@ import json
 from collections.abc import Callable
 from typing import Any, Protocol
 
+import httpx
 from confluent_kafka import KafkaError, Message, Producer
 from confluent_kafka.schema_registry import SchemaRegistryClient
 from confluent_kafka.schema_registry.avro import AvroSerializer
+from confluent_kafka.schema_registry.error import SchemaRegistryError
 from confluent_kafka.serialization import MessageField, SerializationContext
 
 from editguard.common.config import Settings
 from editguard.producer.streams import StreamSpec
 
 DLQ_TOPIC = "edits.dlq"
+
+
+class RegistryUnavailable(Exception):
+    """Schema Registry could not be reached (or failed): retry later, never dead-letter."""
+
 
 DeliveryCallback = Callable[[KafkaError | None, Message], None]
 ValueSerializer = Callable[[dict[str, Any], SerializationContext], bytes | None]
@@ -69,6 +76,13 @@ class RecordSink:
             stage = "serialize"
             context = SerializationContext(self._spec.topic, MessageField.VALUE)
             value = self._serializer(record, context)
+        except (httpx.TransportError, SchemaRegistryError) as exc:
+            if isinstance(exc, SchemaRegistryError) and exc.http_status_code < 500:
+                self._send_to_dlq(event, stage, exc, on_delivery)  # the registry rejected it
+                return False
+            # The registry is unreachable or failing: the event is fine, so do not dead-letter
+            # it. The producer reconnects with backoff and re-reads it from the bookmark.
+            raise RegistryUnavailable(str(exc)) from exc
         except Exception as exc:  # any bad event goes to the DLQ; it must never stop the stream
             self._send_to_dlq(event, stage, exc, on_delivery)
             return False

@@ -1,4 +1,12 @@
-from editguard.producer.gaps import Gap, GapDetector, decode_checkpoint, encode_checkpoint
+import json
+
+from editguard.producer.gaps import (
+    Gap,
+    GapDetector,
+    decode_checkpoint,
+    encode_checkpoint,
+    resume_id,
+)
 
 T = "eqiad.mediawiki.page_change.v1"
 
@@ -37,9 +45,38 @@ def test_seed_from_bookmark_catches_gap_across_restart() -> None:
     assert GapDetector(seed={(T, 0): 10}).observe(T, 0, 20) == Gap(T, 0, 11, 20)
 
 
-def test_checkpoint_round_trip() -> None:
-    token = encode_checkpoint('[{"topic":"x"}]', T, 0, 42)
-    assert decode_checkpoint(token) == ('[{"topic":"x"}]', {(T, 0): 42})
+C = "codfw.mediawiki.page_change.v1"
+# Wikimedia's real resume ID for eqiad offset 1110858454 (2026-09-28): a timestamp, not an offset.
+WIKIMEDIA_ID = json.dumps(
+    [
+        {"offset": -1, "partition": 0, "topic": C},
+        {"topic": T, "partition": 0, "timestamp": 1790621385996},
+    ]
+)
+
+
+def test_checkpoint_round_trip_resumes_every_partition_at_its_next_offset() -> None:
+    token = encode_checkpoint(WIKIMEDIA_ID, {(T, 0): 1110858454, (C, 0): 838990626})
+    resume, positions = decode_checkpoint(token)
+    assert positions == {(T, 0): 1110858454, (C, 0): 838990626}
+    assert sorted(json.loads(resume), key=lambda a: a["topic"]) == [
+        {"topic": C, "partition": 0, "offset": 838990627},
+        {"topic": T, "partition": 0, "offset": 1110858455},  # not the timestamp: that skipped 455
+    ]
+
+
+def test_partition_without_a_position_keeps_wikimedias_entry() -> None:
+    assert json.loads(resume_id(WIKIMEDIA_ID, {(T, 0): 5})) == [
+        {"offset": -1, "partition": 0, "topic": C},
+        {"topic": T, "partition": 0, "offset": 6},
+    ]
+
+
+def test_bookmark_from_before_the_fix_resumes_by_offset() -> None:
+    old = json.dumps({"last_event_id": WIKIMEDIA_ID, "topic": T, "partition": 0, "offset": 9})
+    resume, positions = decode_checkpoint(old)
+    assert positions == {(T, 0): 9}
+    assert {"topic": T, "partition": 0, "offset": 10} in json.loads(resume)
 
 
 def test_old_bare_id_bookmark_still_resumes() -> None:
