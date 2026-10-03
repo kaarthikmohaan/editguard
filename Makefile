@@ -1,9 +1,12 @@
 .DEFAULT_GOAL := help
-.PHONY: help setup up down stream stream-down images deploy test test-all coverage dbt-ci lint contract contract-check dlq-replay format-check infra batch batch-down dbt replay replay-bronze replay-check
+.PHONY: help setup up down stream stream-down images deploy release-tree test test-all coverage dbt-ci lint contract contract-check dlq-replay format-check infra batch batch-down dbt replay replay-bronze replay-check
 
 AWS_PROFILE ?= editguard-dev
 export AWS_PROFILE
 TF_ENV_DIR = infra/terraform/aws/env
+# Airflow runs dbt and its DAGs from this checkout of the deployed release, never from the
+# working folder, so a branch you are working on cannot reach prod (runbook: Airflow).
+RELEASE_DIR = ../editguard-release
 
 # After `make deploy`, .deploy.env pins prod and the release's images for every compose command.
 ifneq ($(wildcard .deploy.env),)
@@ -37,11 +40,20 @@ images: ## Build the producer and Spark images locally (used by make stream with
 deploy: ## Deploy an approved release to prod: make deploy VERSION=vX.Y.Z (from that tag)
 	@test -n "$(VERSION)" || { echo 'usage: make deploy VERSION=v0.2.0'; exit 1; }
 	uv run python -m editguard.tools.deploy $(VERSION)
+	$(MAKE) release-tree VERSION=$(VERSION)
 	$(MAKE) infra ENV=prod
 	$(MAKE) dbt ENV=prod CMD=build
 	$(MAKE) stream
 
+release-tree: ## Point Airflow at a release: make release-tree VERSION=vX.Y.Z (make deploy runs it)
+	@test -n "$(VERSION)" || { echo 'usage: make release-tree VERSION=v0.2.1'; exit 1; }
+	git fetch --tags --quiet
+	if [ -d $(RELEASE_DIR) ]; then git -C $(RELEASE_DIR) switch --detach $(VERSION); \
+	else git worktree add --detach $(RELEASE_DIR) $(VERSION); fi
+	@echo "Airflow now runs $(VERSION) from $(RELEASE_DIR) (picked up at its next run)"
+
 batch: ## Start Airflow (hourly dbt build, daily maintenance); UI at http://localhost:8080
+	@test -d $(RELEASE_DIR) || { echo "no release checkout: make release-tree VERSION=<deployed tag>"; exit 1; }
 	docker compose --profile batch up -d --build --wait airflow
 
 batch-down: ## Stop Airflow only

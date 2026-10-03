@@ -42,23 +42,49 @@ class GapDetector:
         return None
 
 
-def encode_checkpoint(event_id: str, topic: str, partition: int, offset: int) -> str:
-    """Pack the resume ID and its upstream position into one bookmark string."""
+Positions = dict[tuple[str, int], int]  # (upstream topic, partition) -> last offset handled
+
+
+def encode_checkpoint(event_id: str, positions: Positions) -> str:
+    """Pack Wikimedia's resume ID and the last offset handled in every upstream partition."""
     return json.dumps(
-        {"last_event_id": event_id, "topic": topic, "partition": partition, "offset": offset}
+        {
+            "last_event_id": event_id,
+            "positions": [
+                {"topic": t, "partition": p, "offset": o} for (t, p), o in sorted(positions.items())
+            ],
+        }
     )
 
 
-def decode_checkpoint(value: str | None) -> tuple[str | None, dict[tuple[str, int], int]]:
-    """Unpack a bookmark into (resume ID, gap-detector seed).
+def resume_id(event_id: str, positions: Positions) -> str:
+    """The Last-Event-ID to resume with: start each known partition at its next offset.
 
-    Older bookmarks are a bare Last-Event-ID (a JSON list) with no position; they resume
-    fine but give the gap detector nothing to compare against.
+    Wikimedia's own IDs resume eqiad by message timestamp, and Kafka timestamps are not
+    always in offset order (offset 1110858455 is 1 ms older than 1110858454), so a
+    timestamp resume can skip an event (docs/postmortems/2026-10-03-resume-skip.md).
+    EventStreams starts an `offset` assignment at that offset, so offset + 1 is exact.
+    Partitions we have no position for keep Wikimedia's entry.
+    """
+    entries = {(e["topic"], e["partition"]): e for e in json.loads(event_id)}
+    for (topic, partition), offset in positions.items():
+        entries[(topic, partition)] = {"topic": topic, "partition": partition, "offset": offset + 1}
+    return json.dumps(list(entries.values()))
+
+
+def decode_checkpoint(value: str | None) -> tuple[str | None, Positions]:
+    """Unpack a bookmark into (resume ID, positions; the gap detector's seed).
+
+    Bookmarks written before the fix hold one position (topic, partition, offset); the
+    oldest are a bare Last-Event-ID (a JSON list) with no position at all.
     """
     if value is None:
         return None, {}
     parsed = json.loads(value)
     if isinstance(parsed, list):
         return value, {}
-    seed = {(parsed["topic"], parsed["partition"]): parsed["offset"]}
-    return parsed["last_event_id"], seed
+    if "positions" in parsed:
+        positions = {(e["topic"], e["partition"]): e["offset"] for e in parsed["positions"]}
+    else:
+        positions = {(parsed["topic"], parsed["partition"]): parsed["offset"]}
+    return resume_id(parsed["last_event_id"], positions), positions
