@@ -1,6 +1,6 @@
 [project]
 name = "editguard"
-version = "0.2.1"
+version = "0.2.2"
 description = "Real-time triage of Wikipedia edits that anti-vandal bots miss"
 readme = "README.md"
 authors = [

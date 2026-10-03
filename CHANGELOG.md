@@ -4,6 +4,8 @@ All notable changes are listed here. Format: [Keep a Changelog](https://keepacha
 
 ## [Unreleased]
 
+## [0.2.2] - 2026-10-03
+
 ### Fixed
 - The producer resumes every upstream partition by offset instead of Wikimedia's timestamp-based resume ID, which skipped an event whose Kafka timestamp was older than its predecessor's (2 events on non-target wikis lost on 2026-09-28 and 2026-09-30; postmortem `docs/postmortems/2026-10-03-resume-skip.md`).
 - Schema Registry connection errors and 5xx responses are retried with backoff instead of sending valid events to the DLQ.
