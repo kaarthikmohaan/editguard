@@ -36,6 +36,10 @@ transform = [
     "dbt-core>=1.12.5",
     "dbt-duckdb==1.11.0",
 ]
+# The evaluation report (make report): fast resampling for the bootstrap interval.
+evaluation = [
+    "numpy>=2.3",
+]
 
 [tool.ruff]
 line-length = 100

@@ -4,6 +4,10 @@ All notable changes are listed here. Format: [Keep a Changelog](https://keepacha
 
 ## [Unreleased]
 
+### Added
+- M4 (evaluation):
+  - `editguard.evaluation`: recall at a 2% review budget (edits tied at the cut get fractional credit, the expected result of a random tie-break) and a paired bootstrap that resamples whole hours (10,000 resamples, fixed seed) for the 95% interval of EditGuard minus the baseline; offline scoring with the live rules code. New dependency group `evaluation` (numpy) for the report only.
+
 ## [0.3.0] - 2026-10-04
 
 Revert labels and point-in-time editor history: the inputs for M4's evaluation report and M6's model.
