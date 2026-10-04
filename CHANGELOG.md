@@ -7,6 +7,7 @@ All notable changes are listed here. Format: [Keep a Changelog](https://keepacha
 ### Added
 - M4 (evaluation):
   - ADR 0013, the evaluation protocol: the test window is 5 to 11 October 2026 (UTC), fixed on 4 October before it began (`editguard.evaluation.protocol`); earlier days give development reports only; report inputs are frozen per snapshot so every result can be re-derived.
+  - `make report SNAPSHOT=…` (`editguard.tools.report`): the evaluation report pinned to a `gold.fact_label` snapshot; the first run freezes the evaluated rows (no usernames or edit text) with a SHA-256 checksum in S3, later runs re-derive the same report from them (T-REPORT-REPRO); development windows write `data/reports/`, the pre-registered test window writes `docs/results.md`.
   - `editguard.evaluation`: recall at a 2% review budget (edits tied at the cut get fractional credit, the expected result of a random tie-break) and a paired bootstrap that resamples whole hours (10,000 resamples, fixed seed) for the 95% interval of EditGuard minus the baseline; offline scoring with the live rules code. New dependency group `evaluation` (numpy) for the report only.
 
 ## [0.3.0] - 2026-10-04

@@ -1,5 +1,5 @@
 .DEFAULT_GOAL := help
-.PHONY: help setup up down stream stream-down images deploy release-tree test test-all coverage dbt-ci lint contract contract-check dlq-replay format-check infra batch batch-down dbt replay replay-bronze replay-check
+.PHONY: help setup up down stream stream-down images deploy release-tree report test test-all coverage dbt-ci lint contract contract-check dlq-replay format-check infra batch batch-down dbt replay replay-bronze replay-check
 
 AWS_PROFILE ?= editguard-dev
 export AWS_PROFILE
@@ -15,7 +15,7 @@ export EDITGUARD_ENV EDITGUARD_PRODUCER_IMAGE EDITGUARD_SPARK_IMAGE
 endif
 
 help: ## List targets
-	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*## "} {printf "  %-14s %s\n", $$1, $$2}'
+	@grep -hE '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*## "} {printf "  %-14s %s\n", $$1, $$2}'
 
 setup: ## Install dependencies and git hooks
 	uv sync --all-groups
@@ -115,6 +115,12 @@ dlq-replay: ## Re-send dead-lettered edits that now parse to edits.replay.v1 (th
 replay-bronze: ## Append everything replayed so far to bronze.edits_replay: make replay-bronze ENV=…
 	@test -n "$(ENV)" || { echo 'usage: make replay-bronze ENV=dev|staging|prod'; exit 1; }
 	uv run python -m editguard.streaming.replay_job --env $(ENV)
+
+report: ## Evaluation report (ADR 0013): make report SNAPSHOT=latest|<id> [WINDOW=test] [SINCE= UNTIL=]
+	@test -n "$(SNAPSHOT)" || { echo 'usage: make report SNAPSHOT=latest [WINDOW=test]'; exit 1; }
+	uv run --group transform --group evaluation python -m editguard.tools.report \
+	  --snapshot $(SNAPSHOT) --window $(or $(WINDOW),dev) \
+	  $(if $(SINCE),--since $(SINCE)) $(if $(UNTIL),--until $(UNTIL))
 
 replay-check: ## Replay-count check: make replay-check ENV=staging|prod REPORT=data/replays/….json
 	@test -n "$(ENV)" -a -n "$(REPORT)" || { echo 'usage: make replay-check ENV=prod REPORT=data/replays/<file>.json'; exit 1; }
