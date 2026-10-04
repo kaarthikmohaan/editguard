@@ -84,8 +84,12 @@ def test_rendering_marks_development_reports_and_insufficient_segments() -> None
     assert "75.0%" in text  # English coverage: 3 of 4 edits have a Wikimedia score
 
 
-def test_test_report_keeps_the_later_sections_of_results_md() -> None:
+def test_test_report_keeps_later_sections_and_replaces_label_quality() -> None:
     results_md = Path("docs/results.md").read_text()
-    merged = keep_later_sections("# Results\n\nnew headline\n", results_md)
+    merged = keep_later_sections(
+        "# Results\n\nnew headline\n\n## Label quality\n\nours\n", results_md
+    )
     assert merged.startswith("# Results\n\nnew headline\n")
-    assert merged.endswith(results_md[results_md.index("\n## Ablation") :])
+    assert merged.count("## Label quality") == 1 and "ours" in merged  # the template's is dropped
+    assert "## Ablation" in merged and "## SLOs" in merged and "## Cost" in merged
+    assert merged.endswith(results_md[results_md.index("\n## SLOs") :])

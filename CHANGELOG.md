@@ -6,6 +6,7 @@ All notable changes are listed here. Format: [Keep a Changelog](https://keepacha
 
 ### Added
 - M4 (evaluation):
+  - The label audits, done by hand on 26 Sep to 1 Oct: revert logic 47 of 49 labels follow the rule (both misses are reverts undone by hand, which Wikipedia does not tag as reverts); of 199 `damaging` edits in English, Hindi and Kannada, 20% were vandalism, 41% honest mistakes, 19% content disputes and 21% fine edits. `make report` now prints them as the Label quality table.
   - Label audits: `make audit-sample KIND=logic|noise` draws a deterministic sample from development days on English, Hindi and Kannada Wikipedia into `docs/audits/*.csv` (diff, revert and history links, empty verdict columns); `make audit-summary` counts the filled-in verdicts.
   - ADR 0013, the evaluation protocol: the test window is 5 to 11 October 2026 (UTC), fixed on 4 October before it began (`editguard.evaluation.protocol`); earlier days give development reports only; report inputs are frozen per snapshot so every result can be re-derived.
   - `make report SNAPSHOT=…` (`editguard.tools.report`): the evaluation report pinned to a `gold.fact_label` snapshot; the first run freezes the evaluated rows (no usernames or edit text) with a SHA-256 checksum in S3, later runs re-derive the same report from them (T-REPORT-REPRO); development windows write `data/reports/`, the pre-registered test window writes `docs/results.md`.

@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 
 from editguard.evaluation.audit import (
+    label_quality,
     links,
     summarize_logic,
     summarize_noise,
@@ -75,3 +76,19 @@ def test_samples_never_touch_the_test_window() -> None:
     for sql in (logic_sql(), noise_sql()):
         assert f"timestamp '{DEV_SINCE}'" in sql and f"timestamp '{DEV_UNTIL}'" in sql
         assert "2026-10-05" not in sql
+
+
+def test_label_quality_table_from_filled_sheets(tmp_path: Path) -> None:
+    logic, noise = tmp_path / "logic-x.csv", tmp_path / "noise-x.csv"
+    write_sample(logic, [ROW, {**ROW, "rev_id": "2"}], ["correct", "note"])
+    fill(logic, "correct", ["yes", "no"])
+    fill(logic, "note", ["", "revert undone by hand"])
+    write_sample(noise, [ROW, {**ROW, "wiki_id": "enwiki"}], ["category", "note"])
+    fill(noise, "category", ["vandalism", "fine"])
+    table = "\n".join(label_quality(tmp_path))
+    assert (
+        "| Revert-logic audit (2 cases, `logic-x.csv`) | 1/2 correct (auditor disagreed: " in table
+    )
+    assert "#2: revert undone by hand" in table
+    assert "vandalism 50%, honest mistake 0%, content dispute 0%, fine 50%" in table
+    assert "languages: en, hi" in table
