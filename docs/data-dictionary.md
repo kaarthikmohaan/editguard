@@ -118,12 +118,15 @@ Deduplicated union of `bronze.edits` and `bronze.edits_replay`, article-namespac
 | --- | --- | --- |
 | wiki_id | string | Wiki database name. |
 | rev_id | bigint | The labelled edit. |
-| label | string | `damaging`, `bot_caught`, `ok` or `label_unknown`. |
+| label | string | `damaging`, `bot_caught`, `ok` or `label_unknown` (younger than 48 hours, not final yet). Rules: design section 7 and ADR 0005; built by `transform/models/silver/labels.sql`. |
 | reverting_rev_id | bigint | Revert that covered this edit, if any. |
 | revert_method | string | rollback, undo or manual. |
 | reverter_is_bot | boolean | Whether the reverting account is a bot. |
 | minutes_to_revert | double | Time from edit to revert. |
 | label_final_at | timestamp | event_time + 48 h; label frozen after this. |
+| event_time | timestamp | The labelled edit's event time (partition key). |
+
+Edits from before recording started are not in `silver.edits`, so they have no label row. Only reverts within an edit's first 48 hours count, so a final label never changes; incremental runs skip edits whose label is final.
 
 ## silver.user_history_asof_hour
 
@@ -132,10 +135,10 @@ Deduplicated union of `bronze.edits` and `bronze.edits_replay`, article-namespac
 | wiki_id | string | Wiki database name. |
 | user_hash | string | Hashed editor. |
 | asof_hour | timestamp | History known at the end of this hour. |
-| reverts_received_30d | int | Damaging labels in the 30 days before `asof_hour`. |
-| edits_30d | int | Edits in the 30 days before `asof_hour`. |
+| reverts_received_30d | int | The editor's edits reverted by someone else on the same page in the 720 hours ending with `asof_hour`, counted when the revert happened (not by final label, which is only known 48 hours later and would leak the future). |
+| edits_30d | int | The editor's article edits in the 720 hours ending with `asof_hour`. |
 
-Features for an edit at hour H read the row for H − 1.
+Features for an edit at hour H read the row for H − 1. The table is sparse (built by `transform/models/silver/user_history_asof_hour.sql`): it has a row only for hours in which a count changes, so "the row for H − 1" is the latest row with `asof_hour <= H − 1`; no row means no history (zero). Rebuilt on every run.
 
 ## gold.fact_edit
 
@@ -169,7 +172,7 @@ One row per scored edit (non-bot article edits, `silver.edits.is_scored_populati
 
 ## gold.fact_label, gold.fact_baseline
 
-Frozen copies of `silver.labels` and `silver.baseline_scores` for the edits in `fact_edit` (same fields). `fact_baseline` is built in M2; `fact_label` arrives with the labels in M4.
+Frozen copies of `silver.labels` and `silver.baseline_scores` for the edits in `fact_edit` (same fields). `fact_label` holds only final labels (`damaging`, `bot_caught`, `ok`): an edit appears once it is 48 hours old and never changes after that.
 
 ## gold.dim_wiki, gold.dim_date, gold.dim_user_hashed
 

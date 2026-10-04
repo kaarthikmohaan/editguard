@@ -1,0 +1,10 @@
+{"case": "alice edits at 10:05", "rev_id": 1, "page_id": 10, "minutes": 605, "user": "alice"}
+{"case": "alice edits at 10:40", "rev_id": 2, "page_id": 11, "minutes": 640, "user": "alice"}
+{"case": "bob reverts alice's 10:05 edit at 11:20", "rev_id": 3, "page_id": 10, "minutes": 680, "user": "bob", "revert": ["undo", 1, 1]}
+{"case": "alice edits at 11:50 (hour 11 must not see the 11:20 revert)", "rev_id": 10, "page_id": 14, "minutes": 710, "user": "alice"}
+{"case": "alice edits at 12:10 (sees hour 11: the revert and 3 edits)", "rev_id": 4, "page_id": 12, "minutes": 730, "user": "alice"}
+{"case": "alice edits at 12:20", "rev_id": 5, "page_id": 13, "minutes": 740, "user": "alice"}
+{"case": "alice reverts her own 12:20 edit: not a revert received", "rev_id": 6, "page_id": 13, "minutes": 750, "user": "alice", "revert": ["undo", 5, 5]}
+{"case": "carol reverts an overlapping ID range on another page: not counted", "rev_id": 7, "page_id": 99, "minutes": 760, "user": "carol", "revert": ["undo", 1, 4]}
+{"case": "dave edits at 00:00 on 26 Sep", "rev_id": 8, "page_id": 20, "minutes": 0, "user": "dave"}
+{"case": "dave edits again 31 days later, after the first left the window", "rev_id": 9, "page_id": 21, "minutes": 44940, "user": "dave"}
