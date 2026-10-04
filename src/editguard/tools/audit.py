@@ -79,6 +79,8 @@ def sample(kind: str) -> None:
     columns += ["wiki_id", "page_title", "rev_id", "event_time", "label", "reverting_rev_id",
                 "minutes_to_revert"]  # fmt: skip
     rows = [dict(zip(columns, r, strict=True)) for r in athena.run(sql)]
+    # Athena returns the union in no fixed order: sort so sample IDs never change between runs.
+    rows.sort(key=lambda r: (r.get("stratum", ""), r["wiki_id"], int(r["rev_id"])))
     verdicts = ["correct", "note"] if kind == "logic" else ["category", "note"]
     path = AUDITS / f"{kind}-{DEV_SINCE}-{DEV_UNTIL}.csv"
     write_sample(path, rows, verdicts)
