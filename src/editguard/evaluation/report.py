@@ -109,10 +109,12 @@ def render(meta: dict[str, str], segs: list[Segment], development: bool) -> str:
         "| --- | --- | --- | --- | --- | --- |",
         *[headline_row(s) for s in segs],
         "",
-        f"Baseline coverage of scored English edits: {pct(english.covered / english.scored)}"
-        if english.scored
-        else "Baseline coverage: no English edits.",
-        " Comparison uses the intersection only. EditGuard is `rules-v0` (no model yet);"
+        (
+            f"Baseline coverage of scored English edits: {pct(english.covered / english.scored)}."
+            if english.scored
+            else "Baseline coverage: no English edits."
+        )
+        + " Comparison uses the intersection only. EditGuard is `rules-v0` (no model yet);"
         " the baseline is Wikimedia's revert-risk model.",
         "",
     ]

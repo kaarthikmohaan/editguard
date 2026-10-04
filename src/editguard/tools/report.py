@@ -72,12 +72,24 @@ def snapshot(athena: Athena, wanted: str) -> tuple[str, str]:
     return rows[0][0], rows[0][1]
 
 
+# UNLOAD writes only plain timestamps, at millisecond precision. Every timestamp here is UTC and
+# Wikimedia's are millisecond-precise, so the cast to timestamp(3) changes no value.
+UTC_TIMESTAMPS = frozenset({"event_time", "performer_registration_dt"})
+
+
+def unload_column(name: str) -> str:
+    if name in UTC_TIMESTAMPS:
+        return f"cast(e.{name} as timestamp(3)) as {name}"
+    return f"e.{name}"
+
+
 def unload_sql(snap: str, committed: str, since: datetime, until: datetime, target: str) -> str:
     as_of = f"FOR TIMESTAMP AS OF TIMESTAMP '{committed}'"
     return f"""
         UNLOAD (
-            select l.wiki_id, l.rev_id, date_trunc('hour', l.event_time) as hour,
-                w.language_group, l.label, {", ".join("e." + c for c in FEATURES)},
+            select l.wiki_id, l.rev_id,
+                cast(date_trunc('hour', l.event_time) as timestamp(3)) as hour,
+                w.language_group, l.label, {", ".join(unload_column(c) for c in FEATURES)},
                 b.probability_true as wikimedia_probability
             from prod_gold.fact_label FOR VERSION AS OF {int(snap)} as l
             join prod_silver.edits {as_of} as e
@@ -184,8 +196,8 @@ def main() -> None:
             s3.download_file(bucket, key, str(local))
             expected = s3.get_object(Bucket=bucket, Key=key + ".sha256")["Body"].read().decode()
             if sha256(local) != expected.strip():
-                sys.exit(f"checksum mismatch for {rows_path}: the frozen rows changed")
-            print(f"frozen rows: {rows_path} (checksum OK)")
+                sys.exit(f"checksum mismatch for {key}: the frozen rows changed")
+            print(f"frozen rows: {rows_path.replace(bucket, '<bucket>')} (checksum OK)")
         else:
             prefix = f"athena-results/prod/report-unload/{snap}/{label}/{int(time.time())}/"
             athena.run(unload_sql(snap, committed, since, until, f"s3://{bucket}/{prefix}"))
@@ -197,7 +209,7 @@ def main() -> None:
             digest = sha256(local)
             s3.upload_file(str(local), bucket, key)
             s3.put_object(Bucket=bucket, Key=key + ".sha256", Body=digest.encode())
-            print(f"frozen rows saved: {rows_path} (sha256 {digest})")
+            print(f"frozen rows saved: {rows_path.replace(bucket, '<bucket>')} (sha256 {digest})")
         rows = load_rows(con, local)
         digest = sha256(local)
 
