@@ -126,7 +126,7 @@ Deduplicated union of `bronze.edits` and `bronze.edits_replay`, article-namespac
 | label_final_at | timestamp | event_time + 48 h; label frozen after this. |
 | event_time | timestamp | The labelled edit's event time (partition key). |
 
-Edits from before recording started are not in `silver.edits`, so they have no label row. Only reverts within an edit's first 48 hours count, so a final label never changes; incremental runs skip edits whose label is final.
+Edits from before recording started are not in `silver.edits`, so they have no label row. Known limitation (logic audit, 2 of 49): a revert undone by hand (the material retyped rather than reverted, so Wikipedia does not tag it as a revert) is not seen, and the edit stays `damaging`. The noise audit found 20% of `damaging` edits were vandalism and the rest honest mistakes, content disputes or fine edits: a revert is a proxy for damage, not proof (ADR 0005). Only reverts within an edit's first 48 hours count, so a final label never changes; incremental runs skip edits whose label is final.
 
 ## silver.user_history_asof_hour
 

@@ -66,3 +66,31 @@ def summarize_noise(path: Path) -> tuple[Counter, int, list[str]]:
         raise ValueError(f"{path}: unknown categories {sorted(unknown)}; use {NOISE_CATEGORIES}")
     languages = sorted({AUDIT_WIKIS[r["wiki_id"]] for r in audited})
     return counts, len(audited), languages
+
+
+def label_quality(audits: Path) -> list[str]:
+    """The report's Label quality table, from the filled sheets under docs/audits/."""
+    rows = ["## Label quality", "", "| Check | Result |", "| --- | --- |"]
+    for path in sorted(audits.glob("logic-*.csv")):
+        correct, audited = summarize_logic(path)
+        wrong = [
+            f"#{r['sample_id']}: {r['note'].strip()}"
+            for r in csv.DictReader(path.open(encoding="utf-8"))
+            if r["correct"].strip().lower() == "no"
+        ]
+        total = sum(1 for _ in csv.DictReader(path.open(encoding="utf-8")))
+        detail = f" (auditor disagreed: {'; '.join(wrong)})" if wrong else ""
+        rows.append(
+            f"| Revert-logic audit ({total} cases, `{path.name}`) "
+            f"| {correct}/{audited} correct{detail} |"
+        )
+    for path in sorted(audits.glob("noise-*.csv")):
+        counts, audited, languages = summarize_noise(path)
+        if not audited:
+            continue
+        shares = ", ".join(f"{c} {100 * counts[c] / audited:.0f}%" for c in NOISE_CATEGORIES)
+        rows.append(
+            f"| Noise audit ({audited} damaging edits audited, languages: "
+            f"{', '.join(languages)}, `{path.name}`) | {shares} |"
+        )
+    return [*rows, ""]

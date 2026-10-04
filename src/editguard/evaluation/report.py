@@ -80,7 +80,9 @@ def headline_row(s: Segment) -> str:
     )
 
 
-def render(meta: dict[str, str], segs: list[Segment], development: bool) -> str:
+def render(
+    meta: dict[str, str], segs: list[Segment], development: bool, quality: list[str] = ()
+) -> str:
     """The report as Markdown. meta: snapshot, committed_at, window, score_version, rows_sha256."""
     english = segs[0]
     lines = []
@@ -117,5 +119,6 @@ def render(meta: dict[str, str], segs: list[Segment], development: bool) -> str:
         + " Comparison uses the intersection only. EditGuard is `rules-v0` (no model yet);"
         " the baseline is Wikimedia's revert-risk model.",
         "",
+        *quality,
     ]
     return "\n".join(lines)

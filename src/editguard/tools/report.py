@@ -24,6 +24,7 @@ import duckdb
 import numpy as np
 
 from editguard.common.config import get_settings
+from editguard.evaluation.audit import label_quality
 from editguard.evaluation.protocol import TEST_WINDOW, TEST_WINDOW_FINAL
 from editguard.evaluation.report import Rows, render, segments
 from editguard.evaluation.scoring import SCORE_VERSION, rules_scores
@@ -31,6 +32,7 @@ from editguard.evaluation.scoring import SCORE_VERSION, rules_scores
 WORKGROUP = "editguard-prod"
 RESULTS = Path("docs/results.md")
 DEV_REPORTS = Path("data/reports")
+AUDITS = Path("docs/audits")
 # The fields compute_features reads (features.POINT_IN_TIME_FIELDS). SQL below is built only
 # from these constants, integers and parsed dates, never from free text (hence the S608 noqas).
 FEATURES = (
@@ -145,9 +147,14 @@ def load_rows(con: duckdb.DuckDBPyConnection, path: Path) -> Rows:
 
 
 def keep_later_sections(report: str, results_md: str) -> str:
-    """The new header and headline, then results.md's later sections (ablation, SLOs, ...)."""
-    marker = "\n## Ablation"
-    return report.rstrip("\n") + "\n" + results_md[results_md.index(marker) :]
+    """The new report, then results.md's later sections (ablation, SLOs, ...). The report
+    brings its own Label quality section, so the template's placeholder one is dropped."""
+    later = results_md[results_md.index("\n## Ablation") :]
+    if "\n## Label quality" in later:
+        start = later.index("\n## Label quality")
+        end = later.find("\n## ", start + 1)
+        later = later[:start] + (later[end:] if end != -1 else "\n")
+    return report.rstrip("\n") + "\n" + later
 
 
 def sha256(path: Path) -> str:
@@ -221,7 +228,8 @@ def main() -> None:
         "rows_path": rows_path.replace(bucket, "<bucket>"),
         "rows_sha256": digest,
     }
-    text = render(meta, segments(rows), development=args.window != "test")
+    quality = label_quality(AUDITS)
+    text = render(meta, segments(rows), development=args.window != "test", quality=quality)
     if args.window == "test":
         out = RESULTS
         text = keep_later_sections(text, RESULTS.read_text())
