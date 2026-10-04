@@ -1,0 +1,31 @@
+name: Bug
+description: Something broke or behaved wrongly
+labels: [bug]
+body:
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What should have happened
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      value: "1. "
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Evidence
+      description: Logs, Grafana panel, query, event_id or rev_id. No usernames, secrets or account IDs.
+  - type: input
+    id: version
+    attributes:
+      label: Version and environment
+      placeholder: "e.g. v0.3.0, prod"

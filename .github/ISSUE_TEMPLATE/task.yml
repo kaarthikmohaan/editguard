@@ -1,0 +1,23 @@
+name: Task
+description: A unit of work, half a day or less
+labels: [task]
+body:
+  - type: dropdown
+    id: milestone
+    attributes:
+      label: Milestone
+      options: [M0, M1, M2, M3, M4, M5, M6, M7, M8]
+    validations:
+      required: true
+  - type: textarea
+    id: done-when
+    attributes:
+      label: Done when
+      description: Checkable outcomes, one per line.
+      value: "- [ ] "
+    validations:
+      required: true
+  - type: textarea
+    id: notes
+    attributes:
+      label: Notes

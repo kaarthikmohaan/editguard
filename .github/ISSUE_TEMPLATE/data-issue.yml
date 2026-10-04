@@ -1,0 +1,34 @@
+name: Data issue
+description: Wrong, missing, duplicated or late data, or a wrong label
+labels: [data]
+body:
+  - type: input
+    id: table
+    attributes:
+      label: Table or topic
+      placeholder: "e.g. prod_silver.labels, edits.raw.v1"
+    validations:
+      required: true
+  - type: textarea
+    id: rows
+    attributes:
+      label: Affected rows
+      description: wiki_id, rev_id or event_id range, time window.
+    validations:
+      required: true
+  - type: textarea
+    id: expected-actual
+    attributes:
+      label: Expected vs actual
+    validations:
+      required: true
+  - type: textarea
+    id: query
+    attributes:
+      label: Query used to find it
+      render: sql
+  - type: textarea
+    id: upstream
+    attributes:
+      label: Upstream change suspected?
+      description: Schema version, stream outage, Wikimedia change.
