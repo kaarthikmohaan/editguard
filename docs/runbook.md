@@ -106,6 +106,16 @@ make report SNAPSHOT=<id> WINDOW=test           # the result: 5 to 11 Oct, docs/
 
 `SNAPSHOT` is a `prod_gold.fact_label` snapshot; `latest` takes the newest and the report prints its ID, so record it. The first run for a (snapshot, window) runs one Athena UNLOAD (raw rows go under `athena-results/`, deleted after 7 days), scores every edit with the live rules code and saves frozen rows (scores, labels, Wikimedia's probability; no usernames or edit text) with a SHA-256 checksum under `s3://<bucket>/prod/reports/<snapshot>/<window>/`. Later runs with the same snapshot read those rows and stop if the checksum differs, so a report can be regenerated long after VACUUM has expired the snapshot. `WINDOW=test` refuses to run before the window's labels are final; a development window may not overlap the test window. The bootstrap (10,000 resamples) takes about a minute.
 
+### Label audits (ADR 0005, design: noise audit)
+
+```bash
+make audit-sample KIND=logic     # 50 labels: does each follow the rule? (docs/audits/logic-*.csv)
+make audit-sample KIND=noise     # 200 damaging edits: what kind of edit? (docs/audits/noise-*.csv)
+make audit-summary               # counts from the filled-in sheets
+```
+
+Samples come from development days only (26 Sep to 1 Oct, never the test window), from English, Hindi and Kannada Wikipedia, ordered by a seeded hash: the same command gives the same sample. Open a sheet in Numbers or Excel; each row links to the edit's diff, the reverting diff and the page history. Logic audit: fill `correct` with `yes` or `no` (the label follows the rule in design section 7), and a `note` when `no`. Noise audit: fill `category` with `vandalism`, `honest mistake`, `content dispute` or `fine`. Commit the filled sheets: they hold public IDs and page titles only, and the results are regenerated from them.
+
 ### Airflow (the batch schedule)
 
 `make batch` builds and starts Airflow 3.3 (LocalExecutor, one container, metadata in the local Postgres database `airflow`); `make batch-down` stops it. Airflow's DAGs and dbt project come from `../editguard-release`, a git worktree at the deployed tag (`make release-tree VERSION=vX.Y.Z`; `make deploy` runs it), never from this working folder, so a branch you are working on cannot reach prod. To try a branch on staging, point that worktree at it (`git -C ../editguard-release switch --detach <branch>`) with `EDITGUARD_DBT_TARGET=staging`, and switch it back afterwards. UI: http://localhost:8080 (bound to 127.0.0.1, no login). Two DAGs in `dags/editguard_batch.py`, both with `catchup=False` and one run at a time:

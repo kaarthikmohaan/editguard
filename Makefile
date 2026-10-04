@@ -1,5 +1,5 @@
 .DEFAULT_GOAL := help
-.PHONY: help setup up down stream stream-down images deploy release-tree report test test-all coverage dbt-ci lint contract contract-check dlq-replay format-check infra batch batch-down dbt replay replay-bronze replay-check
+.PHONY: help setup up down stream stream-down images deploy release-tree report audit-sample audit-summary test test-all coverage dbt-ci lint contract contract-check dlq-replay format-check infra batch batch-down dbt replay replay-bronze replay-check
 
 AWS_PROFILE ?= editguard-dev
 export AWS_PROFILE
@@ -121,6 +121,13 @@ report: ## Evaluation report (ADR 0013): make report SNAPSHOT=latest|<id> [WINDO
 	uv run --group transform --group evaluation python -m editguard.tools.report \
 	  --snapshot $(SNAPSHOT) --window $(or $(WINDOW),dev) \
 	  $(if $(SINCE),--since $(SINCE)) $(if $(UNTIL),--until $(UNTIL))
+
+audit-sample: ## Label-audit sheet from prod (read-only): make audit-sample KIND=logic|noise
+	@test -n "$(KIND)" || { echo 'usage: make audit-sample KIND=logic|noise'; exit 1; }
+	uv run --group transform --group evaluation python -m editguard.tools.audit sample --kind $(KIND)
+
+audit-summary: ## Count the verdicts in the filled-in audit sheets under docs/audits/
+	uv run --group evaluation python -m editguard.tools.audit summary
 
 replay-check: ## Replay-count check: make replay-check ENV=staging|prod REPORT=data/replays/….json
 	@test -n "$(ENV)" -a -n "$(REPORT)" || { echo 'usage: make replay-check ENV=prod REPORT=data/replays/<file>.json'; exit 1; }
