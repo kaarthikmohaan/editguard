@@ -172,7 +172,7 @@ One row per scored edit (non-bot article edits, `silver.edits.is_scored_populati
 
 ## gold.fact_label, gold.fact_baseline
 
-Frozen copies of `silver.labels` and `silver.baseline_scores` for the edits in `fact_edit` (same fields). `fact_baseline` is built in M2; `fact_label` arrives with the labels in M4.
+Frozen copies of `silver.labels` and `silver.baseline_scores` for the edits in `fact_edit` (same fields). `fact_label` holds only final labels (`damaging`, `bot_caught`, `ok`): an edit appears once it is 48 hours old and never changes after that.
 
 ## gold.dim_wiki, gold.dim_date, gold.dim_user_hashed
 

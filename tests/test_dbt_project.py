@@ -68,7 +68,9 @@ def test_maintenance_covers_both_layers_and_limits_daily_optimize(tmp_path, monk
         "prod_bronze.edits:event_time,prod_bronze.baseline_scores:ingested_at,"
         "prod_bronze.edits_replay:event_time,"
         "prod_silver.edits:event_time,prod_silver.baseline_scores:event_time,"
+        "prod_silver.labels:event_time,"
         "prod_gold.fact_edit:event_time,prod_gold.fact_baseline:event_time,"
+        "prod_gold.fact_label:event_time,"
     )
     assert daily.endswith("WHERE event_time >= current_date - interval '1' day")
     assert full == "OPTIMIZE t REWRITE DATA USING BIN_PACK"

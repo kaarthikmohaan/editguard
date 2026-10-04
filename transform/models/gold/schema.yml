@@ -30,6 +30,15 @@ models:
     columns:
       - name: probability_true
         data_tests: [not_null]
+  - name: fact_label
+    description: Final revert labels (ADR 0005) for the edits in fact_edit; never label_unknown.
+    columns:
+      - name: label
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [damaging, bot_caught, ok]
   - name: dim_wiki
     columns:
       - name: wiki_id

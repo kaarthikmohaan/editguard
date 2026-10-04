@@ -26,8 +26,10 @@
         [prefix ~ '_bronze.edits_replay', 'event_time'],
         [prefix ~ '_silver.edits', 'event_time'],
         [prefix ~ '_silver.baseline_scores', 'event_time'],
+        [prefix ~ '_silver.labels', 'event_time'],
         [prefix ~ '_gold.fact_edit', 'event_time'],
         [prefix ~ '_gold.fact_baseline', 'event_time'],
+        [prefix ~ '_gold.fact_label', 'event_time'],
     ]) }}
 {% endmacro %}
 
