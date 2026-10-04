@@ -62,3 +62,18 @@ models:
           - accepted_values:
               arguments:
                 values: [damaging, bot_caught, ok, label_unknown]
+
+  - name: user_history_asof_hour
+    description: >
+      Each editor's edits and reverts received in the 720 hours ending with asof_hour, as known
+      at the end of that hour. Sparse: one row per hour in which a count changes; an edit at
+      hour H reads the latest row at or before H - 1. See docs/data-dictionary.md.
+    columns:
+      - name: user_hash
+        data_tests: [not_null]
+      - name: asof_hour
+        data_tests: [not_null]
+      - name: edits_30d
+        data_tests: [not_null]
+      - name: reverts_received_30d
+        data_tests: [not_null]

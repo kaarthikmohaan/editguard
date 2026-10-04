@@ -135,10 +135,10 @@ Edits from before recording started are not in `silver.edits`, so they have no l
 | wiki_id | string | Wiki database name. |
 | user_hash | string | Hashed editor. |
 | asof_hour | timestamp | History known at the end of this hour. |
-| reverts_received_30d | int | Damaging labels in the 30 days before `asof_hour`. |
-| edits_30d | int | Edits in the 30 days before `asof_hour`. |
+| reverts_received_30d | int | The editor's edits reverted by someone else on the same page in the 720 hours ending with `asof_hour`, counted when the revert happened (not by final label, which is only known 48 hours later and would leak the future). |
+| edits_30d | int | The editor's article edits in the 720 hours ending with `asof_hour`. |
 
-Features for an edit at hour H read the row for H − 1.
+Features for an edit at hour H read the row for H − 1. The table is sparse (built by `transform/models/silver/user_history_asof_hour.sql`): it has a row only for hours in which a count changes, so "the row for H − 1" is the latest row with `asof_hour <= H − 1`; no row means no history (zero). Rebuilt on every run.
 
 ## gold.fact_edit
 

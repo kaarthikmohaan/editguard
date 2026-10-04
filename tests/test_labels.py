@@ -59,7 +59,8 @@ def bronze_row(case: dict, columns: dict[str, str]) -> list:
     return [values.get(name) for name in columns]
 
 
-def load(path: Path) -> None:
+def load(path: Path, rows: list[dict] | None = None) -> None:
+    """A fresh DuckDB with ci_bronze.edits holding the given edge cases (labels by default)."""
     sys.path.insert(0, str(TRANSFORM / "ci"))
     from load_fixtures import edit_columns
 
@@ -72,7 +73,7 @@ def load(path: Path) -> None:
     )
     con.executemany(
         f"INSERT INTO ci_bronze.edits VALUES ({', '.join('?' for _ in columns)})",  # noqa: S608
-        [bronze_row(case, columns) for case in cases()],
+        [bronze_row(case, columns) for case in (rows if rows is not None else cases())],
     )
     con.close()
 
