@@ -1,6 +1,20 @@
-# EditGuard
+<p align="center">
+  <img src="docs/images/editguard-logo.png" alt="EditGuard" width="520">
+</p>
 
-[![ci](https://github.com/kaarthikmohaan/editguard/actions/workflows/ci.yml/badge.svg)](https://github.com/kaarthikmohaan/editguard/actions/workflows/ci.yml)
+<hr>
+
+<p align="center">
+  <a href="https://github.com/kaarthikmohaan/editguard/actions/workflows/ci.yml"><img src="https://github.com/kaarthikmohaan/editguard/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue" alt="License: MIT"></a>
+  <img src="https://img.shields.io/badge/python-3.12-3776AB?logo=python&logoColor=white" alt="Python 3.12">
+  <img src="https://img.shields.io/badge/Kafka-KRaft%20x3-231F20?logo=apachekafka&logoColor=white" alt="Kafka">
+  <img src="https://img.shields.io/badge/Spark-Structured%20Streaming-E25A1C?logo=apachespark&logoColor=white" alt="Spark">
+  <img src="https://img.shields.io/badge/Iceberg-on%20S3-4E8EE9" alt="Iceberg">
+  <img src="https://img.shields.io/badge/dbt-Athena-FF694B?logo=dbt&logoColor=white" alt="dbt">
+  <img src="https://img.shields.io/badge/Airflow-3-017CEE?logo=apacheairflow&logoColor=white" alt="Airflow">
+  <img src="https://img.shields.io/badge/Terraform-1.16-844FBA?logo=terraform&logoColor=white" alt="Terraform 1.16">
+</p>
 
 Real-time triage of Wikipedia edits that anti-vandal bots miss, measured against Wikimedia's own revert-risk model.
 
