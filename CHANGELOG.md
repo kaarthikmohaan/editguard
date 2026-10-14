@@ -4,6 +4,10 @@ All notable changes are listed here. Format: [Keep a Changelog](https://keepacha
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-10-14
+
+The first evaluation: the pre-registered test week, scored against Wikimedia's revert-risk model, with hand audits of the labels. Closes M4.
+
 ### Added
 - M4 (evaluation):
   - The test-week report (`docs/results.md`), from the pre-registered window 5 to 11 October 2026 on label snapshot `525160823113673069`: recall at a 2% review budget for `rules-v0` against Wikimedia's revert-risk model is 9.6% vs 14.0% on English bot-miss edits (−4.4 pts, 95% CI −4.8 to −4.0), 10.3% vs 21.4% on the pooled Indian-language wikis (−11.1 pts, CI −15.3 to −6.9) and 7.5% vs 14.2% on Bengali (−6.6 pts, CI −13.2 to +0.3). The rules are the baseline a trained model has to beat.
@@ -12,6 +16,10 @@ All notable changes are listed here. Format: [Keep a Changelog](https://keepacha
   - ADR 0013, the evaluation protocol: the test window is 5 to 11 October 2026 (UTC), fixed on 4 October before it began (`editguard.evaluation.protocol`); earlier days give development reports only; report inputs are frozen per snapshot so every result can be re-derived.
   - `make report SNAPSHOT=…` (`editguard.tools.report`): the evaluation report pinned to a `gold.fact_label` snapshot; the first run freezes the evaluated rows (no usernames or edit text) with a SHA-256 checksum in S3, later runs re-derive the same report from them (T-REPORT-REPRO); development windows write `data/reports/`, the pre-registered test window writes `docs/results.md`.
   - `editguard.evaluation`: recall at a 2% review budget (edits tied at the cut get fractional credit, the expected result of a random tie-break) and a paired bootstrap that resamples whole hours (10,000 resamples, fixed seed) for the 95% interval of EditGuard minus the baseline; offline scoring with the live rules code. New dependency group `evaluation` (numpy) for the report only.
+
+### Known limitations
+- The prod live job stops with an SSO `UnauthorizedException` ("Session token not found or invalid") when its temporary AWS credentials run out, every 8 hours during the test week. Docker restarts it about a second later and it continues from its checkpoint; no edits were lost. A proper credential refresh is planned for a patch release.
+- `rules-v0` is behind Wikimedia's model in every segment (see `docs/results.md`); the trained model (M6) is what has to close that gap.
 
 ## [0.3.0] - 2026-10-04
 
@@ -119,6 +127,5 @@ The thin slice works end to end: Wikipedia edit → producer → Kafka → Spark
 - The prod live job needs a valid SSO session; when it expires, the job waits for `aws sso login` and catches up from Kafka.
 
 <!--
-## [0.5.0] - YYYY-MM-DD  (first evaluation)
 ## [1.0.0] - YYYY-MM-DD  (acceptance checklist complete)
 -->
