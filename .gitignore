@@ -24,6 +24,7 @@ checkpoints/
 spark-warehouse/
 metastore_db/
 derby.log
+editguard-journals/
 
 # OS and editors
 .DS_Store
