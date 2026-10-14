@@ -14,7 +14,7 @@ How to run EditGuard, what each alert means, and how to recover. Every Grafana a
 | Generate report | `make report SNAPSHOT=<id>` | After labels mature (48 h) |
 | Stop everything | `make down` | End of a run window |
 
-The producer resumes from its last acked event ID on start. Gaps up to about 7 days are recovered automatically; longer ones are permanent.
+The producer resumes from its last acked event ID on start. Gaps up to about 7 days are recovered automatically; longer ones are permanent. Keep the Mac on its charger with the lid open while prod runs: on battery it sleeps when idle, when the lid closes and when the battery runs low. During the test week (5 to 14 Oct 2026) it slept about eight times, for up to 7 hours; each time the producers caught up from their offsets within minutes, with 0 upstream gaps and 0 DLQ events.
 
 ### Local services (`compose.yaml`)
 
@@ -59,7 +59,7 @@ until uv run python -m editguard.streaming.live_job --env prod; do sleep 30; don
 
 Each bronze commit writes a new Iceberg `metadata.json` that lists every snapshot, so the job sets `write.metadata.delete-after-commit.enabled=true` and keeps the newest 100 metadata files (`metadata_cleanup_sql`); without this, metadata grew to 2 GB in the first 1,858 commits. Old snapshots are expired by VACUUM (batch layer).
 
-`--env staging|prod` writes `<prefix>_bronze.edits` on S3 through the Glue catalog, with its own checkpoint under `data/checkpoints/<env>/`. It needs `AWS_PROFILE` and `DATA_BUCKET` in `.env` and a valid SSO session. When the session expires (8 hours by default) the job stops with a credentials error; run `aws sso login --profile editguard-dev` and the loop resumes it from the checkpoint. Kafka keeps 7 days, so nothing is lost while it waits.
+`--env staging|prod` writes `<prefix>_bronze.edits` on S3 through the Glue catalog, with its own checkpoint under `data/checkpoints/<env>/`. It needs `AWS_PROFILE` and `DATA_BUCKET` in `.env` and a valid SSO session. Its AWS credentials run out every 8 hours: the job then stops with `UnauthorizedException: Session token not found or invalid`, Docker restarts it about a second later, and it fetches new credentials and resumes from the checkpoint (seen every 8 hours in the test week, with nothing lost; a proper refresh is planned). This works only while your SSO login is valid; once the login itself expires the restarts keep failing until you run `aws sso login --profile editguard-dev`. Kafka keeps 7 days, so nothing is lost while it waits.
 
 List the top flags (the MVP read path, until the triage page in M5). It loads `edits.flagged` into DuckDB, keeps one row per edit and prints each with its latency and a diff link:
 
@@ -101,7 +101,7 @@ It also reads the username-hashing salt from Secrets Manager for that command (s
 
 ```bash
 make report SNAPSHOT=latest                     # development report, 26 Sep to 1 Oct, data/reports/
-make report SNAPSHOT=<id> WINDOW=test           # the result: 5 to 11 Oct, docs/results.md (from 14 Oct)
+make report SNAPSHOT=<id> WINDOW=test           # the result: 5 to 11 Oct, docs/results.md (run 14 Oct 2026, snapshot 525160823113673069)
 ```
 
 `SNAPSHOT` is a `prod_gold.fact_label` snapshot; `latest` takes the newest and the report prints its ID, so record it. The first run for a (snapshot, window) runs one Athena UNLOAD (raw rows go under `athena-results/`, deleted after 7 days), scores every edit with the live rules code and saves frozen rows (scores, labels, Wikimedia's probability; no usernames or edit text) with a SHA-256 checksum under `s3://<bucket>/prod/reports/<snapshot>/<window>/`. Later runs with the same snapshot read those rows and stop if the checksum differs, so a report can be regenerated long after VACUUM has expired the snapshot. `WINDOW=test` refuses to run before the window's labels are final; a development window may not overlap the test window. The bootstrap (10,000 resamples) takes about a minute. The report's Label quality table comes from the filled audit sheets in `docs/audits/` (section Label audits).
@@ -122,12 +122,12 @@ Samples come from development days only (26 Sep to 1 Oct, never the test window)
 
 | DAG | Schedule (UTC) | Runs |
 | --- | --- | --- |
-| `editguard_dbt_hourly` | 15 minutes past every hour | `dbt build` (silver, gold, 26 data tests) |
+| `editguard_dbt_hourly` | 15 minutes past every hour | `dbt build` (silver, gold, 39 data tests) |
 | `editguard_maintenance_daily` | 02:30 | `run-operation maintain_tables` |
 
 They run dbt through `infra/airflow/dbt.sh` against `EDITGUARD_DBT_TARGET` from `.env` (`staging` if unset), with your SSO login from `~/.aws`. When the SSO session expires, tasks fail with a credentials error and retry twice; after `aws sso login` the next hourly run catches up (the models are incremental). A failed task's log is in the UI (DAG → run → task → Logs).
 
-Table maintenance (Iceberg OPTIMIZE and VACUUM on Athena) for every incremental table (bronze, silver and gold facts), once a day (Airflow will schedule it):
+Table maintenance (Iceberg OPTIMIZE and VACUUM on Athena) for every incremental table (bronze, silver and gold facts), once a day: `editguard_maintenance_daily` runs it at 02:30 UTC. By hand:
 
 ```bash
 make dbt ENV=prod CMD="run-operation maintain_tables"                     # today and yesterday
@@ -158,7 +158,7 @@ Contract changes must stay BACKWARD compatible (CI checks). Kafka then holds mes
 
 ### AWS access
 
-Log in with IAM Identity Center (no long-lived keys): `aws sso login --profile editguard-dev`. Sessions last 8 hours. Check with `aws sts get-caller-identity --profile editguard-dev`; the ARN must contain `AWSReservedSSO_AdministratorAccess`.
+Log in with IAM Identity Center (no long-lived keys): `aws sso login --profile editguard-dev`. The live job's credentials last 8 hours and it renews them by restarting (section 1); the login itself stayed valid for over two days in the test week, so log in every one to two days. Check with `aws sts get-caller-identity --profile editguard-dev`; the ARN must contain `AWSReservedSSO_AdministratorAccess`.
 
 Terraform state lives in the versioned bucket `editguard-tfstate-<account_id>-ap-south-1`, created once by `infra/terraform/aws/bootstrap` (local state, gitignored). If that local state is lost, the bucket still exists: re-create the state with `terraform import aws_s3_bucket.tfstate <bucket>` (and the four settings resources) rather than applying again.
 
