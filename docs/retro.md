@@ -20,7 +20,7 @@ Written at v1.0.0. Honest over flattering.
 | M1 MVP | 8 | 1.9 | The design and day-1 code were already done, so the MVP was mostly wiring; the 24 h run happened unattended |
 | M2 Stream and batch | 10 | 5.1 | dbt on Athena fitted the design well; time went to the bronze metadata fix and two replay bugs |
 | M3 Contracts, CI/CD, environments | 10 | 7.8 | Many small real-world failures (CI setup, OIDC subject, IAM, a Linux-only cleanup bug), each quick to fix once seen |
-| M4 Evaluation | 10 | | |
+| M4 Evaluation | 10 | 10.5 | Includes the daily checks while waiting out the pre-registered test week (5 to 14 Oct), recovering from laptop sleeps, and portfolio work done in the same sessions (README logo, social preview); the evaluation code itself was quick once labels and history were in place |
 | M5 LLM enricher and API | 9 | | |
 | M6 ML model and backfill | 8 | | |
 | M7 Operations hardening | 10 | | |
