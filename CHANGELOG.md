@@ -6,6 +6,7 @@ All notable changes are listed here. Format: [Keep a Changelog](https://keepacha
 
 ### Added
 - M4 (evaluation):
+  - The test-week report (`docs/results.md`), from the pre-registered window 5 to 11 October 2026 on label snapshot `525160823113673069`: recall at a 2% review budget for `rules-v0` against Wikimedia's revert-risk model is 9.6% vs 14.0% on English bot-miss edits (−4.4 pts, 95% CI −4.8 to −4.0), 10.3% vs 21.4% on the pooled Indian-language wikis (−11.1 pts, CI −15.3 to −6.9) and 7.5% vs 14.2% on Bengali (−6.6 pts, CI −13.2 to +0.3). The rules are the baseline a trained model has to beat.
   - The label audits, done by hand on 26 Sep to 1 Oct: revert logic 47 of 49 labels follow the rule (both misses are reverts undone by hand, which Wikipedia does not tag as reverts); of 199 `damaging` edits in English, Hindi and Kannada, 20% were vandalism, 41% honest mistakes, 19% content disputes and 21% fine edits. `make report` now prints them as the Label quality table.
   - Label audits: `make audit-sample KIND=logic|noise` draws a deterministic sample from development days on English, Hindi and Kannada Wikipedia into `docs/audits/*.csv` (diff, revert and history links, empty verdict columns); `make audit-summary` counts the filled-in verdicts.
   - ADR 0013, the evaluation protocol: the test window is 5 to 11 October 2026 (UTC), fixed on 4 October before it began (`editguard.evaluation.protocol`); earlier days give development reports only; report inputs are frozen per snapshot so every result can be re-derived.
