@@ -29,7 +29,7 @@ jobs:
     environment: staging  # the role trusts only this environment
     steps:
       - uses: actions/checkout@v7.0.1
-      - uses: astral-sh/setup-uv@v10.2.0
+      - uses: astral-sh/setup-uv@v10.3.2
       - run: uv sync --all-groups
       - uses: aws-actions/configure-aws-credentials@v6.3.0
         with:
